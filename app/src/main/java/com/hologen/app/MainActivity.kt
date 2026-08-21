@@ -62,7 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.graphicsLayer
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -320,8 +320,8 @@ class MainActivity : ComponentActivity() {
             val center = Offset(size.width / 2f, size.height / 2.1f)
             val scale = size.minDimension / 2.2f
             drawCircle(accent.copy(alpha = 0.07f), scale * 0.72f, center)
-            drawOval(accent.copy(alpha = 0.24f), center = Offset(center.x, center.y + scale * 0.48f), size = Size(scale * 1.42f, scale * 0.25f), style = Stroke(2.dp.toPx()))
-            drawOval(accent.copy(alpha = 0.14f), center = Offset(center.x, center.y + scale * 0.48f), size = Size(scale * 1.8f, scale * 0.36f), style = Stroke(1.dp.toPx()))
+            drawOval(accent.copy(alpha = 0.24f), topLeft = Offset(center.x - scale * 0.71f, center.y + scale * 0.355f), size = Size(scale * 1.42f, scale * 0.25f), style = Stroke(2.dp.toPx()))
+            drawOval(accent.copy(alpha = 0.14f), topLeft = Offset(center.x - scale * 0.9f, center.y + scale * 0.3f), size = Size(scale * 1.8f, scale * 0.36f), style = Stroke(1.dp.toPx()))
             repeat(6) { index ->
                 val height = scale * (0.45f + index * 0.065f)
                 val width = scale * (0.22f + (index % 2) * 0.09f)
