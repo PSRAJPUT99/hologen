@@ -326,10 +326,10 @@ class MainActivity : ComponentActivity() {
                 val height = scale * (0.45f + index * 0.065f)
                 val width = scale * (0.22f + (index % 2) * 0.09f)
                 val left = center.x - width / 2f + (index - 2.5f) * scale * 0.055f
-                drawLine(accent.copy(alpha = 0.18f), Offset(left, center.y + scale * 0.38f), Offset(left + width * 0.42f, center.y - height), width = 2.dp.toPx(), cap = StrokeCap.Round)
-                drawLine(accent.copy(alpha = 0.28f), Offset(left + width * 0.42f, center.y - height), Offset(left + width, center.y + scale * 0.38f), width = 2.dp.toPx(), cap = StrokeCap.Round)
+                drawLine(accent.copy(alpha = 0.18f), Offset(left, center.y + scale * 0.38f), Offset(left + width * 0.42f, center.y - height), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+                drawLine(accent.copy(alpha = 0.28f), Offset(left + width * 0.42f, center.y - height), Offset(left + width, center.y + scale * 0.38f), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
             }
-            drawLine(accent.copy(alpha = 0.18f), Offset(center.x - scale, center.y + scale * 0.48f), Offset(center.x + scale, center.y + scale * 0.48f), width = 1.dp.toPx())
+            drawLine(accent.copy(alpha = 0.18f), Offset(center.x - scale, center.y + scale * 0.48f), Offset(center.x + scale, center.y + scale * 0.48f), strokeWidth = 1.dp.toPx())
         }
     }
 
