@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,7 +67,8 @@ fun rememberHologramViewerController(): HologramViewerController = remember { Ho
 @Composable
 fun HologramViewer(
     modifier: Modifier = Modifier,
-    controller: HologramViewerController = rememberHologramViewerController()
+    controller: HologramViewerController = rememberHologramViewerController(),
+    isLoading: Boolean = false
 ) {
     Box(
         modifier = modifier
@@ -83,6 +85,12 @@ fun HologramViewer(
     ) {
         androidx.compose.runtime.key(controller.resetVersion) {
             SceneContent(controller)
+        }
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center),
+                color = HologenColors.Accent.mint
+            )
         }
         IconButton(
             onClick = controller::resetCamera,

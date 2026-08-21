@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Hologen</string>
+    <string name="chat_input_hint">Send a photo or link to begin</string>
+    <string name="chat_empty_state">Send a photo or link to begin</string>
+    <string name="attach_photo">Attach photo</string>
+    <string name="attach_video">Attach video</string>
+    <string name="attach_link">Attach link</string>
+    <string name="send_message">Send message</string>
 </resources>

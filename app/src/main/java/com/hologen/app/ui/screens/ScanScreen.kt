@@ -1,7 +1,6 @@
 package com.hologen.app.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -33,36 +31,46 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hologen.app.R
+import com.hologen.app.data.Attachment
+import com.hologen.app.data.AttachmentType
+import com.hologen.app.data.ChatMessage
+import com.hologen.app.data.MessageSender
 import com.hologen.app.ui.theme.HologenColors
 import com.hologen.app.ui.theme.HologenMetrics
+import com.hologen.app.viewmodel.ChatViewModel
 
 @Composable
 fun ScanScreen(modifier: Modifier = Modifier) {
+    val chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory)
+    val uiState by chatViewModel.uiState.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
-    var attachmentHint by remember { mutableStateOf("Send a photo or link to begin") }
-    val messages = remember { mutableStateListOf<String>() }
+    var attachments by remember { mutableStateOf<List<Attachment>>(emptyList()) }
 
     Column(modifier = modifier.fillMaxSize().background(HologenColors.Background.primary)) {
-        HologramViewer(modifier = Modifier.weight(3f))
+        HologramViewer(modifier = Modifier.weight(3f), isLoading = uiState.isProcessing)
         Column(
             modifier = Modifier
                 .weight(2f)
                 .padding(horizontal = HologenMetrics.space16, vertical = HologenMetrics.space12),
             verticalArrangement = Arrangement.spacedBy(HologenMetrics.space12)
         ) {
-            MessageList(messages = messages, modifier = Modifier.weight(1f))
+            MessageList(messages = uiState.messages, modifier = Modifier.weight(1f))
             Composer(
                 draft = draft,
-                attachmentHint = attachmentHint,
+                attachments = attachments,
+                enabled = !uiState.isProcessing,
                 onDraftChange = { draft = it },
-                onAttachment = { attachmentHint = it },
+                onAttachment = { type ->
+                    attachments = attachments + Attachment(type, "pending://${type.name.lowercase()}")
+                },
                 onSend = {
-                    if (draft.isNotBlank()) {
-                        messages.add(draft.trim())
-                        draft = ""
-                        attachmentHint = "Send a photo or link to begin"
-                    }
+                    chatViewModel.sendMessage(draft, attachments)
+                    draft = ""
+                    attachments = emptyList()
                 }
             )
         }
@@ -70,7 +78,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MessageList(messages: List<String>, modifier: Modifier) {
+private fun MessageList(messages: List<ChatMessage>, modifier: Modifier) {
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(HologenMetrics.space8)
@@ -82,38 +90,49 @@ private fun MessageList(messages: List<String>, modifier: Modifier) {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "Send a photo or link to begin",
+                        text = stringResource(R.string.chat_empty_state),
                         style = MaterialTheme.typography.bodyMedium,
                         color = HologenColors.Text.secondary
                     )
                 }
             }
         } else {
-            items(messages) { message ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Text(
-                        text = message,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(HologenMetrics.historyCardRadius))
-                            .background(HologenColors.Background.cardSecondary)
-                            .padding(horizontal = HologenMetrics.space12, vertical = HologenMetrics.space8),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = HologenColors.Text.primary
-                    )
-                }
-            }
+            items(messages, key = { it.id }) { message -> MessageBubble(message) }
         }
+    }
+}
+
+@Composable
+private fun MessageBubble(message: ChatMessage) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (message.sender == MessageSender.USER) Arrangement.End else Arrangement.Start
+    ) {
+        Text(
+            text = message.text,
+            modifier = Modifier
+                .clip(RoundedCornerShape(HologenMetrics.historyCardRadius))
+                .background(
+                    if (message.sender == MessageSender.USER) HologenColors.Background.card
+                    else HologenColors.Background.cardSecondary
+                )
+                .padding(horizontal = HologenMetrics.space12, vertical = HologenMetrics.space8),
+            style = MaterialTheme.typography.bodyMedium,
+            color = HologenColors.Text.primary
+        )
     }
 }
 
 @Composable
 private fun Composer(
     draft: String,
-    attachmentHint: String,
+    attachments: List<Attachment>,
+    enabled: Boolean,
     onDraftChange: (String) -> Unit,
-    onAttachment: (String) -> Unit,
+    onAttachment: (AttachmentType) -> Unit,
     onSend: () -> Unit
 ) {
+    val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty())
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -131,35 +150,40 @@ private fun Composer(
             value = draft,
             onValueChange = onDraftChange,
             modifier = Modifier.weight(1f),
+            enabled = enabled,
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = HologenColors.Text.primary),
             cursorBrush = SolidColor(HologenColors.Accent.mint),
             singleLine = true,
             decorationBox = { innerTextField ->
                 Box {
                     if (draft.isEmpty()) {
-                        Text(attachmentHint, style = MaterialTheme.typography.bodyMedium, color = HologenColors.Text.secondary)
+                        Text(
+                            text = stringResource(R.string.chat_input_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = HologenColors.Text.secondary
+                        )
                     }
                     innerTextField()
                 }
             }
         )
-        IconButton(onClick = { onAttachment("Add a photo to begin") }) {
-            Icon(Icons.Outlined.PhotoCamera, contentDescription = "Attach camera photo", tint = HologenColors.Text.secondary)
+        IconButton(onClick = { onAttachment(AttachmentType.PHOTO) }, enabled = enabled) {
+            Icon(Icons.Outlined.PhotoCamera, contentDescription = stringResource(R.string.attach_photo), tint = HologenColors.Text.secondary)
         }
-        IconButton(onClick = { onAttachment("Add a video to begin") }) {
-            Icon(Icons.Outlined.Videocam, contentDescription = "Attach video", tint = HologenColors.Text.secondary)
+        IconButton(onClick = { onAttachment(AttachmentType.VIDEO) }, enabled = enabled) {
+            Icon(Icons.Outlined.Videocam, contentDescription = stringResource(R.string.attach_video), tint = HologenColors.Text.secondary)
         }
-        IconButton(onClick = { onAttachment("Paste a link to begin") }) {
-            Icon(Icons.Outlined.Link, contentDescription = "Attach link", tint = HologenColors.Text.secondary)
+        IconButton(onClick = { onAttachment(AttachmentType.LINK) }, enabled = enabled) {
+            Icon(Icons.Outlined.Link, contentDescription = stringResource(R.string.attach_link), tint = HologenColors.Text.secondary)
         }
         IconButton(
             onClick = onSend,
-            enabled = draft.isNotBlank(),
+            enabled = canSend,
             modifier = Modifier
                 .clip(RoundedCornerShape(HologenMetrics.buttonRadius))
-                .background(if (draft.isNotBlank()) HologenColors.Accent.mint else HologenColors.Background.cardSecondary)
+                .background(if (canSend) HologenColors.Accent.mint else HologenColors.Background.cardSecondary)
         ) {
-            Icon(Icons.Outlined.Send, contentDescription = "Send message", tint = HologenColors.Background.primary)
+            Icon(Icons.Outlined.Send, contentDescription = stringResource(R.string.send_message), tint = HologenColors.Background.primary)
         }
     }
 }
