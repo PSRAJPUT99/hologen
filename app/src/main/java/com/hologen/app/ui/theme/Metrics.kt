@@ -15,6 +15,7 @@ object HologenMetrics {
     val historyCardRadius = 24.dp
     val thumbnailRadius = 24.dp
     val buttonRadius = 999.dp
+    val thinBorder = 1.dp
 
     // Existing layout aliases remain available to current screens.
     val pagePadding = space20
