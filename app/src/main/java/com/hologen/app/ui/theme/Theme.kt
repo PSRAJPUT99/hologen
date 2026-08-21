@@ -1,64 +1,62 @@
 package com.hologen.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 object HologenColors {
-    val ink = Color(0xFF0D1110)
-    val canvas = Color(0xFF111615)
-    val surface = Color(0xFF18201E)
-    val raised = Color(0xFF202A27)
-    val line = Color(0xFF2A3531)
-    val mint = Color(0xFFA7D8C6)
-    val mintStrong = Color(0xFF79BDA7)
-    val mintDim = Color(0xFF6D9588)
-    val paper = Color(0xFFE8F0EC)
-    val quiet = Color(0xFF9AA9A3)
-    val lightPrimary = Color(0xFF2F6B5E)
-    val lightSecondary = Color(0xFF5B7C74)
-    val lightCanvas = Color(0xFFF5F4F1)
-    val lightPaper = Color(0xFF1A1C1B)
-    val lightSurface = Color(0xFFF9F8F5)
+    object Background {
+        val primary = Color(0xFF0B1215)
+        val card = Color(0xFF2E3A40)
+        val cardSecondary = Color(0xFF243036)
+    }
+
+    object Accent {
+        val mint = Color(0xFF9FE7C5)
+        val glow = Color(0xFFB7F5D8)
+    }
+
+    object Text {
+        val primary = Color(0xFFFFFFFF)
+        val secondary = Color(0xFFAEB9BD)
+    }
+
+    object Tile {
+        val add = Color(0xFFE6EEF0)
+    }
+
+    // Compatibility aliases for existing UI code while screens migrate to semantic tokens.
+    val ink = Background.primary
+    val canvas = Background.primary
+    val surface = Background.card
+    val raised = Background.cardSecondary
+    val line = Text.secondary.copy(alpha = 0.2f)
+    val mint = Accent.mint
+    val mintStrong = Accent.mint
+    val mintDim = Text.secondary
+    val paper = Text.primary
+    val quiet = Text.secondary
 }
 
-private val LightColors = lightColorScheme(
-    primary = HologenColors.lightPrimary,
-    onPrimary = Color.White,
-    secondary = HologenColors.lightSecondary,
-    onSecondary = Color.White,
-    background = HologenColors.lightCanvas,
-    onBackground = HologenColors.lightPaper,
-    surface = HologenColors.lightSurface,
-    onSurface = HologenColors.lightPaper
-)
-
 private val DarkColors = darkColorScheme(
-    primary = HologenColors.mint,
-    onPrimary = HologenColors.ink,
-    secondary = HologenColors.mintDim,
-    onSecondary = HologenColors.ink,
-    background = HologenColors.canvas,
-    onBackground = HologenColors.paper,
-    surface = HologenColors.surface,
-    onSurface = HologenColors.paper,
-    surfaceVariant = HologenColors.raised,
-    onSurfaceVariant = HologenColors.quiet,
-    outline = HologenColors.line
+    primary = HologenColors.Accent.mint,
+    onPrimary = HologenColors.Background.primary,
+    secondary = HologenColors.Accent.glow,
+    onSecondary = HologenColors.Background.primary,
+    background = HologenColors.Background.primary,
+    onBackground = HologenColors.Text.primary,
+    surface = HologenColors.Background.card,
+    onSurface = HologenColors.Text.primary,
+    surfaceVariant = HologenColors.Background.cardSecondary,
+    onSurfaceVariant = HologenColors.Text.secondary,
+    outline = HologenColors.Text.secondary.copy(alpha = 0.35f)
 )
 
 @Composable
-fun HologenTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit
-) {
-    val colorScheme = if (darkTheme) DarkColors else LightColors
-
+fun HologenTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkColors,
         typography = Typography,
         content = content
     )
