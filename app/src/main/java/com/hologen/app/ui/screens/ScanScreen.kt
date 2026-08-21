@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Color
 import com.hologen.app.ui.theme.HologenColors
 import com.hologen.app.ui.theme.HologenMetrics
 
@@ -43,7 +44,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     val messages = remember { mutableStateListOf<String>() }
 
     Column(modifier = modifier.fillMaxSize().background(HologenColors.Background.primary)) {
-        StagePlaceholder(modifier = Modifier.weight(3f))
+        HologramViewer(modifier = Modifier.weight(3f))
         Column(
             modifier = Modifier
                 .weight(2f)
@@ -65,29 +66,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 }
             )
         }
-    }
-}
-
-@Composable
-private fun StagePlaceholder(modifier: Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(HologenMetrics.space12)
-            .clip(RoundedCornerShape(HologenMetrics.cardRadius))
-            .background(HologenColors.Background.primary)
-            .border(
-                HologenMetrics.thinBorder,
-                HologenColors.Background.card,
-                RoundedCornerShape(HologenMetrics.cardRadius)
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "Hologram renders here",
-            style = MaterialTheme.typography.bodyLarge,
-            color = HologenColors.Text.secondary
-        )
     }
 }
 
