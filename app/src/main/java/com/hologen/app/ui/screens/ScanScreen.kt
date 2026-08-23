@@ -23,9 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Photo // Replaces 'Image' to avoid compiler clash
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.VideoLibrary
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -175,8 +178,8 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                         }
                         showAttachmentSheet = false
                     }
-                    // FULLY QUALIFIED NAME TO AVOID CONFLICT
-                    AttachmentOption(androidx.compose.material.icons.outlined.Image, "Photo") {
+                    // USING 'Photo' INSTEAD OF 'Image' TO AVOID COMPILER CLASH
+                    AttachmentOption(Icons.Outlined.Photo, "Photo") {
                         photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         showAttachmentSheet = false
                     }
@@ -184,8 +187,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                         videoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
                         showAttachmentSheet = false
                     }
-                    // FULLY QUALIFIED NAME TO AVOID CONFLICT
-                    AttachmentOption(androidx.compose.material.icons.outlined.Link, "Link") {
+                    AttachmentOption(Icons.Outlined.Link, "Link") {
                         attachments = attachments + Attachment(AttachmentType.LINK, "link_${System.currentTimeMillis()}")
                         showAttachmentSheet = false
                     }
@@ -286,11 +288,11 @@ private fun AttachmentChips(attachments: List<Attachment>, onRemove: (Attachment
                 modifier = Modifier.clip(RoundedCornerShape(HologenMetrics.space8)).background(HologenColors.Background.cardSecondary).padding(horizontal = HologenMetrics.space8, vertical = HologenMetrics.space4),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // FULLY QUALIFIED NAMES HERE TOO
+                // USING 'Photo' INSTEAD OF 'Image'
                 val iconVector: ImageVector = when (attachment.type) {
-                    AttachmentType.PHOTO -> androidx.compose.material.icons.outlined.Image
-                    AttachmentType.VIDEO -> androidx.compose.material.icons.outlined.Videocam
-                    AttachmentType.LINK -> androidx.compose.material.icons.outlined.Link
+                    AttachmentType.PHOTO -> Icons.Outlined.Photo
+                    AttachmentType.VIDEO -> Icons.Outlined.Videocam
+                    AttachmentType.LINK -> Icons.Outlined.Link
                 }
                 Icon(imageVector = iconVector, contentDescription = null, tint = HologenColors.Accent.mint, modifier = Modifier.size(HologenMetrics.space16))
                 Spacer(modifier = Modifier.width(HologenMetrics.space4))
@@ -349,14 +351,12 @@ private fun MessageBubble(message: ChatMessage) {
                         if (videoThumbnail != null) {
                             Box {
                                 Image(bitmap = videoThumbnail, contentDescription = "Attached video", modifier = Modifier.size(120.dp).clip(RoundedCornerShape(16.dp)).padding(bottom = 4.dp))
-                                // FULLY QUALIFIED NAME
-                                Icon(imageVector = androidx.compose.material.icons.outlined.Videocam, contentDescription = "Video", tint = HologenColors.Accent.mint, modifier = Modifier.align(Alignment.Center).size(32.dp))
+                                Icon(imageVector = Icons.Outlined.Videocam, contentDescription = "Video", tint = HologenColors.Accent.mint, modifier = Modifier.align(Alignment.Center).size(32.dp))
                             }
                         }
                     }
                     AttachmentType.LINK -> {
-                        // FULLY QUALIFIED NAME
-                        Icon(imageVector = androidx.compose.material.icons.outlined.Link, contentDescription = "Link", tint = HologenColors.Accent.mint, modifier = Modifier.size(48.dp).padding(bottom = 4.dp))
+                        Icon(imageVector = Icons.Outlined.Link, contentDescription = "Link", tint = HologenColors.Accent.mint, modifier = Modifier.size(48.dp).padding(bottom = 4.dp))
                     }
                 }
             }
