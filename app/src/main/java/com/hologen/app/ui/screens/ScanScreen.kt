@@ -3,10 +3,12 @@ package com.hologen.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Send
@@ -25,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hologen.app.R
@@ -48,13 +51,13 @@ fun ScanScreen(modifier: Modifier = Modifier) {
             .fillMaxSize()
             .background(HologenColors.Background.primary)
     ) {
-        // Top Zone: Hologram Viewer (60% space approx, weight 3f)
+        // Top Zone: Hologram Viewer
         HologramViewer(
-            modifier = Modifier.weight(3f), 
+            modifier = Modifier.weight(3f),
             isLoading = uiState.isProcessing
         )
-        
-        // Bottom Zone: Chat Interface (40% space approx, weight 2f)
+
+        // Bottom Zone: Chat Interface
         Column(
             modifier = Modifier
                 .weight(2f)
@@ -62,16 +65,28 @@ fun ScanScreen(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(HologenMetrics.space12)
         ) {
             MessageList(
-                messages = uiState.messages, 
+                messages = uiState.messages,
                 modifier = Modifier.weight(1f)
             )
+
+            // NEW: Show Attachments here
+            if (attachments.isNotEmpty()) {
+                AttachmentChips(
+                    attachments = attachments,
+                    onRemove = { attachmentToRemove ->
+                        attachments = attachments.filter { it != attachmentToRemove }
+                    }
+                )
+            }
+
             Composer(
                 draft = draft,
                 attachments = attachments,
                 enabled = !uiState.isProcessing,
                 onDraftChange = { draft = it },
                 onAttachment = { type ->
-                    attachments = attachments + Attachment(type, "pending://${type.name.lowercase()}")
+                    // Add a mock attachment when button clicked
+                    attachments = attachments + Attachment(type, "mock_uri_${System.currentTimeMillis()}")
                 },
                 onSend = {
                     chatViewModel.sendMessage(draft, attachments)
@@ -79,6 +94,56 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                     attachments = emptyList()
                 }
             )
+        }
+    }
+}
+
+// NEW COMPOSABLE: To show attached items visually
+@Composable
+private fun AttachmentChips(
+    attachments: List<Attachment>,
+    onRemove: (Attachment) -> Unit
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(HologenMetrics.space8)
+    ) {
+        items(attachments) { attachment ->
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(HologenMetrics.space8))
+                    .background(HologenColors.Background.cardSecondary)
+                    .padding(horizontal = HologenMetrics.space8, vertical = HologenMetrics.space4),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = when (attachment.type) {
+                        AttachmentType.PHOTO -> Icons.Outlined.PhotoCamera
+                        AttachmentType.VIDEO -> Icons.Outlined.Videocam
+                        AttachmentType.LINK -> Icons.Outlined.Link
+                    },
+                    contentDescription = null,
+                    tint = HologenColors.Accent.mint,
+                    modifier = Modifier.size(HologenMetrics.space16)
+                )
+                Spacer(modifier = Modifier.width(HologenMetrics.space4))
+                Text(
+                    text = attachment.type.name.lowercase().replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = HologenColors.Text.primary
+                )
+                Spacer(modifier = Modifier.width(HologenMetrics.space4))
+                IconButton(
+                    onClick = { onRemove(attachment) },
+                    modifier = Modifier.size(HologenMetrics.space16)
+                ) {
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = "Remove",
+                        tint = HologenColors.Text.secondary,
+                        modifier = Modifier.size(HologenMetrics.space12)
+                    )
+                }
+            }
         }
     }
 }
@@ -98,13 +163,14 @@ private fun MessageList(messages: List<ChatMessage>, modifier: Modifier) {
                     Text(
                         text = stringResource(R.string.chat_empty_state),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = HologenColors.Text.secondary
+                        color = HologenColors.Text.secondary,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
         } else {
-            items(messages, key = { it.id }) { message -> 
-                MessageBubble(message) 
+            items(messages, key = { it.id }) { message ->
+                MessageBubble(message)
             }
         }
     }
@@ -141,7 +207,7 @@ private fun Composer(
     onSend: () -> Unit
 ) {
     val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty())
-    
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -158,7 +224,7 @@ private fun Composer(
         BasicTextField(
             value = draft,
             onValueChange = onDraftChange,
-            modifier = Modifier.weight(1f), // <-- Yahan weight safe hai kyunki ye Row ke andar hai
+            modifier = Modifier.weight(1f),
             enabled = enabled,
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = HologenColors.Text.primary),
             cursorBrush = SolidColor(HologenColors.Accent.mint),
@@ -176,7 +242,7 @@ private fun Composer(
                 }
             }
         )
-        
+
         IconButton(onClick = { onAttachment(AttachmentType.PHOTO) }, enabled = enabled) {
             Icon(Icons.Outlined.PhotoCamera, contentDescription = stringResource(R.string.attach_photo), tint = HologenColors.Text.secondary)
         }
