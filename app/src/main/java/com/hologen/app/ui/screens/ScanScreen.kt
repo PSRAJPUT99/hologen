@@ -1,9 +1,11 @@
 package com.hologen.app.ui.screens
 
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,9 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hologen.app.R
@@ -48,12 +52,11 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     var draft by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<Attachment>>(emptyList()) }
 
-    // Photo Picker Launcher
-    val photoPickerLauncher = rememberLauncherForActivityResult(
+    // Photo/Video Picker Launcher
+    val mediaPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
-            // Real photo selected - add to attachments
             attachments = attachments + Attachment(AttachmentType.PHOTO, it.toString())
         }
     }
@@ -63,11 +66,13 @@ fun ScanScreen(modifier: Modifier = Modifier) {
             .fillMaxSize()
             .background(HologenColors.Background.primary)
     ) {
+        // Top Zone: Hologram Stage
         HologramViewer(
             modifier = Modifier.weight(3f),
             isLoading = uiState.isProcessing
         )
 
+        // Bottom Zone: Chat Interface
         Column(
             modifier = Modifier
                 .weight(2f)
@@ -79,6 +84,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f)
             )
 
+            // Attachment Chips
             if (attachments.isNotEmpty()) {
                 AttachmentChips(
                     attachments = attachments,
@@ -95,14 +101,13 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 onDraftChange = { draft = it },
                 onAttachment = { type ->
                     when (type) {
-                        AttachmentType.PHOTO -> photoPickerLauncher.launch(
+                        AttachmentType.PHOTO -> mediaPickerLauncher.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
-                        AttachmentType.VIDEO -> photoPickerLauncher.launch(
+                        AttachmentType.VIDEO -> mediaPickerLauncher.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
                         )
                         AttachmentType.LINK -> {
-                            // For now, just add a mock link attachment
                             attachments = attachments + Attachment(type, "link_${System.currentTimeMillis()}")
                         }
                     }
@@ -116,9 +121,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         }
     }
 }
-
-// ... (Baaki functions same rahenge - AttachmentChips, MessageList, MessageBubble, Composer)
-// Upar wale code me ye sab functions already hain, unko mat change kar
 
 @Composable
 private fun AttachmentChips(
@@ -199,22 +201,51 @@ private fun MessageList(messages: List<ChatMessage>, modifier: Modifier) {
 
 @Composable
 private fun MessageBubble(message: ChatMessage) {
-    Row(
+    val context = LocalContext.current
+    
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (message.sender == MessageSender.USER) Arrangement.End else Arrangement.Start
+        horizontalAlignment = if (message.sender == MessageSender.USER) Alignment.End else Alignment.Start
     ) {
-        Text(
-            text = message.text,
-            modifier = Modifier
-                .clip(RoundedCornerShape(HologenMetrics.historyCardRadius))
-                .background(
-                    if (message.sender == MessageSender.USER) HologenColors.Background.card
-                    else HologenColors.Background.cardSecondary
-                )
-                .padding(horizontal = HologenMetrics.space12, vertical = HologenMetrics.space8),
-            style = MaterialTheme.typography.bodyMedium,
-            color = HologenColors.Text.primary
-        )
+        // Show Image Thumbnail if attachment exists
+        if (message.attachments.isNotEmpty()) {
+            message.attachments.forEach { attachment ->
+                if (attachment.type == AttachmentType.PHOTO) {
+                    val bitmap = remember(attachment.uri) {
+                        try {
+                            val inputStream = context.contentResolver.openInputStream(Uri.parse(attachment.uri))
+                            BitmapFactory.decodeStream(inputStream)?.asImageBitmap()
+                        } catch (e: Exception) { null }
+                    }
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = "Attached photo",
+                            modifier = Modifier
+                                .size(120.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .padding(bottom = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Show Text Message
+        if (message.text.isNotBlank()) {
+            Text(
+                text = message.text,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(HologenMetrics.historyCardRadius))
+                    .background(
+                        if (message.sender == MessageSender.USER) HologenColors.Background.card
+                        else HologenColors.Background.cardSecondary
+                    )
+                    .padding(horizontal = HologenMetrics.space12, vertical = HologenMetrics.space8),
+                style = MaterialTheme.typography.bodyMedium,
+                color = HologenColors.Text.primary
+            )
+        }
     }
 }
 
