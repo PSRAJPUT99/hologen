@@ -1,7 +1,7 @@
 package com.hologen.app.ui.navigation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clip // <-- YE LINE ADD KI HAI (Missing thi)
+import androidx.compose.foundation.clip // <-- YE IMPORT SABSE ZARURI HAI
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
