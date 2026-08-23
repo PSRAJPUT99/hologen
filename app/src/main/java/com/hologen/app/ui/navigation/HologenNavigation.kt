@@ -26,7 +26,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip // <-- YE SAHI IMPORT HAI (ui.draw.clip)
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import com.hologen.app.ui.theme.HologenColors
 import com.hologen.app.ui.theme.HologenMetrics
 
@@ -71,9 +72,11 @@ fun HologenNavigation(
 
 @Composable
 private fun TabItem(tab: HologenTab, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val shape: Shape = RoundedCornerShape(HologenMetrics.buttonRadius)
+    
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(HologenMetrics.buttonRadius))
+            .clip(shape)
             .clickable(
                 interactionSource = MutableInteractionSource(),
                 indication = null,
@@ -96,7 +99,7 @@ private fun TabItem(tab: HologenTab, selected: Boolean, onClick: () -> Unit, mod
         Box(
             modifier = Modifier
                 .fillMaxWidth(fraction = 0.42f)
-                .clip(RoundedCornerShape(HologenMetrics.buttonRadius))
+                .clip(shape)
                 .background(if (selected) HologenColors.Accent.mint else HologenColors.Background.card)
                 .padding(vertical = HologenMetrics.space4)
         )
