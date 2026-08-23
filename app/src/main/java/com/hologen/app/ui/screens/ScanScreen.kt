@@ -1,7 +1,10 @@
 package com.hologen.app.ui.screens
 
 import android.graphics.BitmapFactory
+import android.media.ThumbnailUtils
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -57,7 +60,8 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
-            attachments = attachments + Attachment(AttachmentType.PHOTO, it.toString())
+            val type = if (it.toString().contains("video")) AttachmentType.VIDEO else AttachmentType.PHOTO
+            attachments = attachments + Attachment(type, it.toString())
         }
     }
 
@@ -207,23 +211,76 @@ private fun MessageBubble(message: ChatMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (message.sender == MessageSender.USER) Alignment.End else Alignment.Start
     ) {
-        // Show Image Thumbnail if attachment exists
+        // Show Image/Video Thumbnail if attachment exists
         if (message.attachments.isNotEmpty()) {
             message.attachments.forEach { attachment ->
-                if (attachment.type == AttachmentType.PHOTO) {
-                    val bitmap = remember(attachment.uri) {
-                        try {
-                            val inputStream = context.contentResolver.openInputStream(Uri.parse(attachment.uri))
-                            BitmapFactory.decodeStream(inputStream)?.asImageBitmap()
-                        } catch (e: Exception) { null }
+                when (attachment.type) {
+                    AttachmentType.PHOTO -> {
+                        val bitmap = remember(attachment.uri) {
+                            try {
+                                val inputStream = context.contentResolver.openInputStream(Uri.parse(attachment.uri))
+                                BitmapFactory.decodeStream(inputStream)?.asImageBitmap()
+                            } catch (e: Exception) { null }
+                        }
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap,
+                                contentDescription = "Attached photo",
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .padding(bottom = 4.dp)
+                            )
+                        }
                     }
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap,
-                            contentDescription = "Attached photo",
+                    AttachmentType.VIDEO -> {
+                        val videoThumbnail = remember(attachment.uri) {
+                            try {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    ThumbnailUtils.createVideoThumbnail(
+                                        java.io.File(Uri.parse(attachment.uri).path ?: ""),
+                                        android.util.Size(200, 200),
+                                        null
+                                    )?.asImageBitmap()
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    ThumbnailUtils.createVideoThumbnail(
+                                        Uri.parse(attachment.uri).path,
+                                        MediaStore.Video.Thumbnails.MINI_KIND
+                                    )?.asImageBitmap()
+                                }
+                            } catch (e: Exception) { null }
+                        }
+                        if (videoThumbnail != null) {
+                            Box {
+                                Image(
+                                    bitmap = videoThumbnail,
+                                    contentDescription = "Attached video",
+                                    modifier = Modifier
+                                        .size(120.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .padding(bottom = 4.dp)
+                                )
+                                // Play icon overlay
+                                Icon(
+                                    imageVector = Icons.Outlined.Videocam,
+                                    contentDescription = "Video",
+                                    tint = HologenColors.Accent.mint,
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .size(32.dp)
+                                )
+                            }
+                        }
+                    }
+                    AttachmentType.LINK -> {
+                        // Link icon display
+                        Icon(
+                            imageVector = Icons.Outlined.Link,
+                            contentDescription = "Link",
+                            tint = HologenColors.Accent.mint,
                             modifier = Modifier
-                                .size(120.dp)
-                                .clip(RoundedCornerShape(16.dp))
+                                .size(48.dp)
                                 .padding(bottom = 4.dp)
                         )
                     }
