@@ -232,6 +232,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
             }
         }
     }
+
 if (showModelSheet) {
         ModalBottomSheet(
             onDismissRequest = { showModelSheet = false },
