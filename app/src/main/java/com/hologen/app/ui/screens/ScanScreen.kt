@@ -10,6 +10,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,21 +18,27 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Link
-import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -54,6 +61,10 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     val uiState by chatViewModel.uiState.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<Attachment>>(emptyList()) }
+    
+    // State for the attachment bottom sheet
+    var showAttachmentSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
 
     // Separate Launchers for Photo and Video
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -110,19 +121,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 attachments = attachments,
                 enabled = !uiState.isProcessing,
                 onDraftChange = { draft = it },
-                onAttachment = { type ->
-                    when (type) {
-                        AttachmentType.PHOTO -> photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                        AttachmentType.VIDEO -> videoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                        )
-                        AttachmentType.LINK -> {
-                            attachments = attachments + Attachment(type, "link_${System.currentTimeMillis()}")
-                        }
-                    }
-                },
+                onShowAttachmentMenu = { showAttachmentSheet = true }, // Open sheet on + click
                 onSend = {
                     chatViewModel.sendMessage(draft, attachments)
                     draft = ""
@@ -130,6 +129,92 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 }
             )
         }
+    }
+
+    // Attachment Bottom Sheet (The "+" Menu)
+    if (showAttachmentSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAttachmentSheet = false },
+            sheetState = sheetState,
+            containerColor = HologenColors.Background.card
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Add Attachment",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = HologenColors.Text.primary,
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    AttachmentOption(
+                        icon = Icons.Outlined.CameraAlt,
+                        label = "Camera",
+                        onClick = {
+                            // For now, camera opens photo picker. Can be upgraded to real camera later.
+                            photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            showAttachmentSheet = false
+                        }
+                    )
+                    AttachmentOption(
+                        icon = Icons.Outlined.Image,
+                        label = "Photo",
+                        onClick = {
+                            photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            showAttachmentSheet = false
+                        }
+                    )
+                    AttachmentOption(
+                        icon = Icons.Outlined.VideoLibrary,
+                        label = "Video",
+                        onClick = {
+                            videoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                            showAttachmentSheet = false
+                        }
+                    )
+                    AttachmentOption(
+                        icon = Icons.Outlined.Link,
+                        label = "Link",
+                        onClick = {
+                            attachments = attachments + Attachment(AttachmentType.LINK, "link_${System.currentTimeMillis()}")
+                            showAttachmentSheet = false
+                        }
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+}
+
+// Helper Composable for Attachment Options in the Sheet
+@Composable
+private fun AttachmentOption(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = HologenColors.Accent.mint,
+            modifier = Modifier.size(32.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = HologenColors.Text.primary
+        )
     }
 }
 
@@ -210,7 +295,6 @@ private fun MessageList(messages: List<ChatMessage>, modifier: Modifier) {
     }
 }
 
-// Helper function to extract video thumbnail from content URI
 private fun getVideoThumbnail(context: Context, uri: Uri): Bitmap? {
     return try {
         val retriever = MediaMetadataRetriever()
@@ -231,7 +315,6 @@ private fun MessageBubble(message: ChatMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (message.sender == MessageSender.USER) Alignment.End else Alignment.Start
     ) {
-        // Show Image/Video Thumbnail if attachment exists
         if (message.attachments.isNotEmpty()) {
             message.attachments.forEach { attachment ->
                 when (attachment.type) {
@@ -267,32 +350,19 @@ private fun MessageBubble(message: ChatMessage) {
                                         .clip(RoundedCornerShape(16.dp))
                                         .padding(bottom = 4.dp)
                                 )
-                                // Play icon overlay
                                 Icon(
                                     imageVector = Icons.Outlined.Videocam,
                                     contentDescription = "Video",
                                     tint = HologenColors.Accent.mint,
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .size(32.dp)
+                                    modifier = Modifier.align(Alignment.Center).size(32.dp)
                                 )
                             }
                         } else {
-                            // Fallback: Show video icon if thumbnail fails
                             Box(
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(HologenColors.Background.cardSecondary)
-                                    .padding(bottom = 4.dp),
+                                modifier = Modifier.size(120.dp).clip(RoundedCornerShape(16.dp)).background(HologenColors.Background.cardSecondary).padding(bottom = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Videocam,
-                                    contentDescription = "Video",
-                                    tint = HologenColors.Accent.mint,
-                                    modifier = Modifier.size(48.dp)
-                                )
+                                Icon(Icons.Outlined.Videocam, contentDescription = "Video", tint = HologenColors.Accent.mint, modifier = Modifier.size(48.dp))
                             }
                         }
                     }
@@ -301,16 +371,13 @@ private fun MessageBubble(message: ChatMessage) {
                             imageVector = Icons.Outlined.Link,
                             contentDescription = "Link",
                             tint = HologenColors.Accent.mint,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .padding(bottom = 4.dp)
+                            modifier = Modifier.size(48.dp).padding(bottom = 4.dp)
                         )
                     }
                 }
             }
         }
 
-        // Show Text Message
         if (message.text.isNotBlank()) {
             Text(
                 text = message.text,
@@ -334,7 +401,7 @@ private fun Composer(
     attachments: List<Attachment>,
     enabled: Boolean,
     onDraftChange: (String) -> Unit,
-    onAttachment: (AttachmentType) -> Unit,
+    onShowAttachmentMenu: () -> Unit, // Changed from onAttachment
     onSend: () -> Unit
 ) {
     val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty())
@@ -374,15 +441,11 @@ private fun Composer(
             }
         )
 
-        IconButton(onClick = { onAttachment(AttachmentType.PHOTO) }, enabled = enabled) {
-            Icon(Icons.Outlined.PhotoCamera, contentDescription = stringResource(R.string.attach_photo), tint = HologenColors.Text.secondary)
+        // The NEW "+" Button
+        IconButton(onClick = onShowAttachmentMenu, enabled = enabled) {
+            Icon(Icons.Outlined.Add, contentDescription = "Add Attachment", tint = HologenColors.Text.secondary)
         }
-        IconButton(onClick = { onAttachment(AttachmentType.VIDEO) }, enabled = enabled) {
-            Icon(Icons.Outlined.Videocam, contentDescription = stringResource(R.string.attach_video), tint = HologenColors.Text.secondary)
-        }
-        IconButton(onClick = { onAttachment(AttachmentType.LINK) }, enabled = enabled) {
-            Icon(Icons.Outlined.Link, contentDescription = stringResource(R.string.attach_link), tint = HologenColors.Text.secondary)
-        }
+
         IconButton(
             onClick = onSend,
             enabled = canSend,
