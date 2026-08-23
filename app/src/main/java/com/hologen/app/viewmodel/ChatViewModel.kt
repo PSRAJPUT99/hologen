@@ -2,8 +2,8 @@ package com.hologen.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hologen.app.data.Attachment
+import com.hologen.app.data.AttachmentType
 import com.hologen.app.data.ChatMessage
 import com.hologen.app.data.MessageSender
 import kotlinx.coroutines.delay
@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-// Data classes for Chat State
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val isProcessing: Boolean = false
@@ -44,13 +43,22 @@ class ChatViewModel : ViewModel() {
             )
         }
 
-        // 3. Simulate AI Response (Mock Backend)
+        // 3. Smart AI Response Logic
         viewModelScope.launch {
-            delay(1500) // 1.5 second ka delay taaki real lage
+            delay(1500) // 1.5 second delay for realism
             
+            // Determine response based on attachments
+            val aiResponseText = if (attachments.any { it.type == AttachmentType.PHOTO || it.type == AttachmentType.VIDEO }) {
+                "Visual data received. Analyzing object geometry and researching parts..."
+            } else if (attachments.any { it.type == AttachmentType.LINK }) {
+                "Link detected. Fetching external metadata and specifications..."
+            } else {
+                "Processing your request: '$text'. Please wait..."
+            }
+
             val aiMessage = ChatMessage(
                 id = UUID.randomUUID().toString(),
-                text = "Received! Scanning object and researching parts...",
+                text = aiResponseText,
                 sender = MessageSender.AI,
                 attachments = emptyList()
             )
@@ -64,7 +72,6 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    // Factory for Compose
     companion object {
         val Factory = object : androidx.lifecycle.ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
