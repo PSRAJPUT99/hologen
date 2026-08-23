@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +55,7 @@ import com.hologen.app.ui.theme.HologenColors
 import com.hologen.app.ui.theme.HologenMetrics
 import com.hologen.app.viewmodel.ChatViewModel
 
+@OptIn(ExperimentalMaterial3Api::class) // <-- YE LINE ADD KI HAI (Experimental API allow karne ke liye)
 @Composable
 fun ScanScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -157,7 +159,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                         icon = Icons.Outlined.CameraAlt,
                         label = "Camera",
                         onClick = {
-                            // For now, camera opens photo picker. Can be upgraded to real camera later.
                             photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             showAttachmentSheet = false
                         }
@@ -236,7 +237,7 @@ private fun AttachmentChips(
             ) {
                 Icon(
                     imageVector = when (attachment.type) {
-                        AttachmentType.PHOTO -> Icons.Outlined.PhotoCamera
+                        AttachmentType.PHOTO -> Icons.Outlined.Image // <-- FIX: PhotoCamera ki jagah Image use kiya
                         AttachmentType.VIDEO -> Icons.Outlined.Videocam
                         AttachmentType.LINK -> Icons.Outlined.Link
                     },
@@ -401,7 +402,7 @@ private fun Composer(
     attachments: List<Attachment>,
     enabled: Boolean,
     onDraftChange: (String) -> Unit,
-    onShowAttachmentMenu: () -> Unit, // Changed from onAttachment
+    onShowAttachmentMenu: () -> Unit,
     onSend: () -> Unit
 ) {
     val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty())
