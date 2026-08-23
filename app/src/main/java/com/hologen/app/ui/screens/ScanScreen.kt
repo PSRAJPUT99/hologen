@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hologen.app.R
@@ -55,9 +56,6 @@ import com.hologen.app.ui.theme.HologenColors
 import com.hologen.app.ui.theme.HologenMetrics
 import com.hologen.app.viewmodel.ChatViewModel
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,8 +77,10 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success && cameraPhotoUri != null) {
-            attachments = attachments + Attachment(AttachmentType.PHOTO, cameraPhotoUri.toString())
+        // FIX: Local variable copy to avoid smart cast issue with delegated property
+        val currentUri = cameraPhotoUri
+        if (success && currentUri != null) {
+            attachments = attachments + Attachment(AttachmentType.PHOTO, currentUri.toString())
         }
         cameraPhotoUri = null // Reset
     }
@@ -178,18 +178,21 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                         icon = Icons.Outlined.CameraAlt,
                         label = "Camera",
                         onClick = {
-                            // Create URI for camera photo
-                            val photoFile = File.createTempFile(
-                                "hologen_capture_",
-                                ".jpg",
-                                context.cacheDir
-                            )
-                            cameraPhotoUri = androidx.core.content.FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                photoFile
-                            )
-                            cameraLauncher.launch(cameraPhotoUri)
+                            try {
+                                val photoFile = File.createTempFile(
+                                    "hologen_capture_",
+                                    ".jpg",
+                                    context.cacheDir
+                                )
+                                cameraPhotoUri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    photoFile
+                                )
+                                cameraLauncher.launch(cameraPhotoUri)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
                             showAttachmentSheet = false
                         }
                     )
@@ -487,7 +490,4 @@ private fun Composer(
                 .clip(RoundedCornerShape(HologenMetrics.buttonRadius))
                 .background(if (canSend) HologenColors.Accent.mint else HologenColors.Background.cardSecondary)
         ) {
-            Icon(Icons.Outlined.Send, contentDescription = stringResource(R.string.send_message), tint = HologenColors.Background.primary)
-        }
-    }
-}
+   
