@@ -10,6 +10,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,7 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Image as ImageIcon
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.SmartToy
@@ -285,10 +286,10 @@ private fun AttachmentChips(attachments: List<Attachment>, onRemove: (Attachment
                 modifier = Modifier.clip(RoundedCornerShape(HologenMetrics.space8)).background(HologenColors.Background.cardSecondary).padding(horizontal = HologenMetrics.space8, vertical = HologenMetrics.space4),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val iconVector = when (attachment.type) {
-                    AttachmentType.PHOTO -> Icons.Outlined.Image
-                    AttachmentType.VIDEO -> Icons.Outlined.Videocam
-                    AttachmentType.LINK -> Icons.Outlined.Link
+                val iconVector: ImageVector = when (attachment.type) {
+                    AttachmentType.PHOTO -> ImageIcon
+                    AttachmentType.VIDEO -> Videocam
+                    AttachmentType.LINK -> Link
                 }
                 Icon(imageVector = iconVector, contentDescription = null, tint = HologenColors.Accent.mint, modifier = Modifier.size(HologenMetrics.space16))
                 Spacer(modifier = Modifier.width(HologenMetrics.space4))
@@ -347,12 +348,12 @@ private fun MessageBubble(message: ChatMessage) {
                         if (videoThumbnail != null) {
                             Box {
                                 Image(bitmap = videoThumbnail, contentDescription = "Attached video", modifier = Modifier.size(120.dp).clip(RoundedCornerShape(16.dp)).padding(bottom = 4.dp))
-                                Icon(imageVector = Icons.Outlined.Videocam, contentDescription = "Video", tint = HologenColors.Accent.mint, modifier = Modifier.align(Alignment.Center).size(32.dp))
+                                Icon(imageVector = Videocam, contentDescription = "Video", tint = HologenColors.Accent.mint, modifier = Modifier.align(Alignment.Center).size(32.dp))
                             }
                         }
                     }
                     AttachmentType.LINK -> {
-                        Icon(imageVector = Icons.Outlined.Link, contentDescription = "Link", tint = HologenColors.Accent.mint, modifier = Modifier.size(48.dp).padding(bottom = 4.dp))
+                        Icon(imageVector = Link, contentDescription = "Link", tint = HologenColors.Accent.mint, modifier = Modifier.size(48.dp).padding(bottom = 4.dp))
                     }
                 }
             }
