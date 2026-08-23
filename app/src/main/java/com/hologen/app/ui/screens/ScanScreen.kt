@@ -71,17 +71,9 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     
     var showAttachmentSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
-
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
 
-    val requestCameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            launchCamera(context, cameraLauncher)
-        }
-    }
-
+    // 1. PEHLE Camera Launcher define karo
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
@@ -92,14 +84,19 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         cameraUri = null 
     }
 
-    fun launchCamera(ctx: Context, launcher: (Uri) -> Unit) {
-        try {
-            val photoFile = File.createTempFile("hologen_capture_", ".jpg", ctx.cacheDir)
-            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", photoFile)
-            cameraUri = uri
-            launcher(uri)
-        } catch (e: Exception) {
-            e.printStackTrace()
+    // 2. PHIR Permission Launcher define karo
+    val requestCameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            try {
+                val photoFile = File.createTempFile("hologen_capture_", ".jpg", context.cacheDir)
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+                cameraUri = uri
+                cameraLauncher.launch(uri) // Ab ye kaam karega kyunki upar define ho chuka hai
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -194,7 +191,14 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             ) == PackageManager.PERMISSION_GRANTED
 
                             if (isGranted) {
-                                launchCamera(context, cameraLauncher)
+                                try {
+                                    val photoFile = File.createTempFile("hologen_capture_", ".jpg", context.cacheDir)
+                                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+                                    cameraUri = uri
+                                    cameraLauncher.launch(uri)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
                             } else {
                                 requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                             }
@@ -343,6 +347,7 @@ private fun getVideoThumbnail(context: Context, uri: Uri): Bitmap? {
         null
     }
 }
+
 @Composable
 private fun MessageBubble(message: ChatMessage) {
     val context = LocalContext.current
