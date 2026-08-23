@@ -60,7 +60,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
-            val type = if (it.toString().contains("video")) AttachmentType.VIDEO else AttachmentType.PHOTO
+            val type = if (it.toString().contains("video", ignoreCase = true)) AttachmentType.VIDEO else AttachmentType.PHOTO
             attachments = attachments + Attachment(type, it.toString())
         }
     }
@@ -236,18 +236,21 @@ private fun MessageBubble(message: ChatMessage) {
                     AttachmentType.VIDEO -> {
                         val videoThumbnail = remember(attachment.uri) {
                             try {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                val uriPath = Uri.parse(attachment.uri).path
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriPath != null) {
                                     ThumbnailUtils.createVideoThumbnail(
-                                        java.io.File(Uri.parse(attachment.uri).path ?: ""),
+                                        java.io.File(uriPath),
                                         android.util.Size(200, 200),
                                         null
                                     )?.asImageBitmap()
-                                } else {
+                                } else if (uriPath != null) {
                                     @Suppress("DEPRECATION")
                                     ThumbnailUtils.createVideoThumbnail(
-                                        Uri.parse(attachment.uri).path,
+                                        uriPath,
                                         MediaStore.Video.Thumbnails.MINI_KIND
                                     )?.asImageBitmap()
+                                } else {
+                                    null
                                 }
                             } catch (e: Exception) { null }
                         }
