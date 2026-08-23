@@ -1,5 +1,9 @@
 package com.hologen.app.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,15 +21,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -41,23 +42,32 @@ import com.hologen.app.viewmodel.ChatViewModel
 
 @Composable
 fun ScanScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val chatViewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory)
     val uiState by chatViewModel.uiState.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<Attachment>>(emptyList()) }
+
+    // Photo Picker Launcher
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let {
+            // Real photo selected - add to attachments
+            attachments = attachments + Attachment(AttachmentType.PHOTO, it.toString())
+        }
+    }
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(HologenColors.Background.primary)
     ) {
-        // Top Zone: Hologram Viewer
         HologramViewer(
             modifier = Modifier.weight(3f),
             isLoading = uiState.isProcessing
         )
 
-        // Bottom Zone: Chat Interface
         Column(
             modifier = Modifier
                 .weight(2f)
@@ -69,7 +79,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f)
             )
 
-            // NEW: Show Attachments here
             if (attachments.isNotEmpty()) {
                 AttachmentChips(
                     attachments = attachments,
@@ -85,8 +94,18 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 enabled = !uiState.isProcessing,
                 onDraftChange = { draft = it },
                 onAttachment = { type ->
-                    // Add a mock attachment when button clicked
-                    attachments = attachments + Attachment(type, "mock_uri_${System.currentTimeMillis()}")
+                    when (type) {
+                        AttachmentType.PHOTO -> photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                        AttachmentType.VIDEO -> photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                        )
+                        AttachmentType.LINK -> {
+                            // For now, just add a mock link attachment
+                            attachments = attachments + Attachment(type, "link_${System.currentTimeMillis()}")
+                        }
+                    }
                 },
                 onSend = {
                     chatViewModel.sendMessage(draft, attachments)
@@ -98,7 +117,9 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     }
 }
 
-// NEW COMPOSABLE: To show attached items visually
+// ... (Baaki functions same rahenge - AttachmentChips, MessageList, MessageBubble, Composer)
+// Upar wale code me ye sab functions already hain, unko mat change kar
+
 @Composable
 private fun AttachmentChips(
     attachments: List<Attachment>,
