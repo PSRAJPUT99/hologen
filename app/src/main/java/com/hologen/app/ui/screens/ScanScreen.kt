@@ -23,12 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Image as ImageIcon
-import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Image as OutlinedImage
+import androidx.compose.material.icons.outlined.Link as OutlinedLink
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.VideoLibrary
-import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.outlined.Videocam as OutlinedVideocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -178,7 +178,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                         }
                         showAttachmentSheet = false
                     }
-                    AttachmentOption(Icons.Outlined.Image, "Photo") {
+                    AttachmentOption(OutlinedImage, "Photo") {
                         photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         showAttachmentSheet = false
                     }
@@ -186,7 +186,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                         videoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
                         showAttachmentSheet = false
                     }
-                    AttachmentOption(Icons.Outlined.Link, "Link") {
+                    AttachmentOption(OutlinedLink, "Link") {
                         attachments = attachments + Attachment(AttachmentType.LINK, "link_${System.currentTimeMillis()}")
                         showAttachmentSheet = false
                     }
@@ -233,7 +233,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         }
     }
 
-if (showModelSheet) {
+    if (showModelSheet) {
         ModalBottomSheet(
             onDismissRequest = { showModelSheet = false },
             sheetState = modelSheetState,
@@ -288,9 +288,9 @@ private fun AttachmentChips(attachments: List<Attachment>, onRemove: (Attachment
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val iconVector: ImageVector = when (attachment.type) {
-                    AttachmentType.PHOTO -> ImageIcon
-                    AttachmentType.VIDEO -> Videocam
-                    AttachmentType.LINK -> Link
+                    AttachmentType.PHOTO -> OutlinedImage
+                    AttachmentType.VIDEO -> OutlinedVideocam
+                    AttachmentType.LINK -> OutlinedLink
                 }
                 Icon(imageVector = iconVector, contentDescription = null, tint = HologenColors.Accent.mint, modifier = Modifier.size(HologenMetrics.space16))
                 Spacer(modifier = Modifier.width(HologenMetrics.space4))
@@ -349,12 +349,12 @@ private fun MessageBubble(message: ChatMessage) {
                         if (videoThumbnail != null) {
                             Box {
                                 Image(bitmap = videoThumbnail, contentDescription = "Attached video", modifier = Modifier.size(120.dp).clip(RoundedCornerShape(16.dp)).padding(bottom = 4.dp))
-                                Icon(imageVector = Videocam, contentDescription = "Video", tint = HologenColors.Accent.mint, modifier = Modifier.align(Alignment.Center).size(32.dp))
+                                Icon(imageVector = OutlinedVideocam, contentDescription = "Video", tint = HologenColors.Accent.mint, modifier = Modifier.align(Alignment.Center).size(32.dp))
                             }
                         }
                     }
                     AttachmentType.LINK -> {
-                        Icon(imageVector = Link, contentDescription = "Link", tint = HologenColors.Accent.mint, modifier = Modifier.size(48.dp).padding(bottom = 4.dp))
+                        Icon(imageVector = OutlinedLink, contentDescription = "Link", tint = HologenColors.Accent.mint, modifier = Modifier.size(48.dp).padding(bottom = 4.dp))
                     }
                 }
             }
