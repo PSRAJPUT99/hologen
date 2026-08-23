@@ -1,10 +1,10 @@
 package com.hologen.app.ui.screens
 
+import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.media.ThumbnailUtils
+import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -210,6 +210,19 @@ private fun MessageList(messages: List<ChatMessage>, modifier: Modifier) {
     }
 }
 
+// Helper function to extract video thumbnail from content URI
+private fun getVideoThumbnail(context: Context, uri: Uri): Bitmap? {
+    return try {
+        val retriever = MediaMetadataRetriever()
+        retriever.setDataSource(context, uri)
+        val bitmap = retriever.getFrameAtTime()
+        retriever.release()
+        bitmap
+    } catch (e: Exception) {
+        null
+    }
+}
+
 @Composable
 private fun MessageBubble(message: ChatMessage) {
     val context = LocalContext.current
@@ -242,24 +255,7 @@ private fun MessageBubble(message: ChatMessage) {
                     }
                     AttachmentType.VIDEO -> {
                         val videoThumbnail = remember(attachment.uri) {
-                            try {
-                                val uriPath = Uri.parse(attachment.uri).path
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uriPath != null) {
-                                    ThumbnailUtils.createVideoThumbnail(
-                                        java.io.File(uriPath),
-                                        android.util.Size(200, 200),
-                                        null
-                                    )?.asImageBitmap()
-                                } else if (uriPath != null) {
-                                    @Suppress("DEPRECATION")
-                                    ThumbnailUtils.createVideoThumbnail(
-                                        uriPath,
-                                        MediaStore.Video.Thumbnails.MINI_KIND
-                                    )?.asImageBitmap()
-                                } else {
-                                    null
-                                }
-                            } catch (e: Exception) { null }
+                            getVideoThumbnail(context, Uri.parse(attachment.uri))?.asImageBitmap()
                         }
                         if (videoThumbnail != null) {
                             Box {
@@ -279,6 +275,23 @@ private fun MessageBubble(message: ChatMessage) {
                                     modifier = Modifier
                                         .align(Alignment.Center)
                                         .size(32.dp)
+                                )
+                            }
+                        } else {
+                            // Fallback: Show video icon if thumbnail fails
+                            Box(
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(HologenColors.Background.cardSecondary)
+                                    .padding(bottom = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Videocam,
+                                    contentDescription = "Video",
+                                    tint = HologenColors.Accent.mint,
+                                    modifier = Modifier.size(48.dp)
                                 )
                             }
                         }
