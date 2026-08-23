@@ -1,5 +1,6 @@
 package com.hologen.app.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -7,7 +8,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,9 +20,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hologen.app.data.SettingsRepository
 import com.hologen.app.ui.theme.HologenColors
 import com.hologen.app.ui.theme.HologenMetrics
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// Popular OpenRouter Models
 val AVAILABLE_MODELS = listOf(
     "openai/gpt-4o",
     "openai/gpt-4o-mini",
@@ -46,6 +46,13 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     var inputApiKey by remember { mutableStateOf(apiKey ?: "") }
     var isModelDropdownExpanded by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var saveButtonText by remember { mutableStateOf("Save API Key") }
+
+    LaunchedEffect(apiKey) {
+        if (apiKey != null && apiKey != inputApiKey) {
+            inputApiKey = apiKey!!
+        }
+    }
 
     Column(
         modifier = modifier
@@ -62,11 +69,9 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(bottom = 24.dp)
         )
 
-        // --- SECTION 1: AI Configuration ---
         SettingsSectionHeader(title = "AI Configuration", icon = Icons.Outlined.SmartToy)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // API Key Input
         OutlinedTextField(
             value = inputApiKey,
             onValueChange = { inputApiKey = it },
@@ -84,19 +89,27 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         
         Button(
             onClick = { 
-                scope.launch {
-                    repository.saveApiKey(inputApiKey)
+                if (inputApiKey.isNotBlank()) {
+                    scope.launch {
+                        repository.saveApiKey(inputApiKey)
+                        saveButtonText = "Saved! ✓"
+                        Toast.makeText(context, "API Key Saved Successfully!", Toast.LENGTH_SHORT).show()
+                        delay(2000)
+                        saveButtonText = "Save API Key"
+                    }
+                } else {
+                    Toast.makeText(context, "Please enter a valid API Key", Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = HologenColors.Accent.mint)
+            colors = ButtonDefaults.buttonColors(containerColor = HologenColors.Accent.mint),
+            enabled = inputApiKey.isNotBlank()
         ) {
-            Text("Save API Key", color = HologenColors.Background.primary)
+            Text(saveButtonText, color = HologenColors.Background.primary)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Model Selector
         Text(
             text = "Preferred Model",
             style = MaterialTheme.typography.titleMedium,
@@ -104,7 +117,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        Box(modifier = Modifier.fillMaxWidth()) {
+Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = { isModelDropdownExpanded = true },
                 modifier = Modifier.fillMaxWidth(),
@@ -123,6 +136,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                         onClick = {
                             scope.launch {
                                 repository.saveSelectedModel(model)
+                                Toast.makeText(context, "Model changed to: $model", Toast.LENGTH_SHORT).show()
                             }
                             isModelDropdownExpanded = false
                         }
@@ -133,7 +147,6 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // --- SECTION 2: Data Management ---
         SettingsSectionHeader(title = "Data Management", icon = Icons.Outlined.ClearAll)
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -147,7 +160,6 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // --- SECTION 3: About ---
         SettingsSectionHeader(title = "About", icon = Icons.Outlined.Info)
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -158,7 +170,6 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         )
     }
 
-    // Clear Data Confirmation Dialog
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
@@ -169,6 +180,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     scope.launch {
                         repository.clearLocalData()
                         inputApiKey = ""
+                        Toast.makeText(context, "All data cleared", Toast.LENGTH_SHORT).show()
                     }
                     showClearDialog = false
                 }) {
