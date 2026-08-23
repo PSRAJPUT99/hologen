@@ -1,6 +1,8 @@
 package com.hologen.app.ui.screens
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
@@ -44,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -72,16 +75,37 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     // Camera URI state
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Camera Launcher
+    // 1. Permission Launcher (Mangne ke liye)
+    val requestCameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            // Permission mil gayi, ab camera kholo
+            launchCamera(context, cameraLauncher)
+        }
+    }
+
+    // 2. Camera Launcher (Asli camera kholne ke liye)
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        // Local variable copy to fix smart cast issue
         val currentUri = cameraUri
         if (success && currentUri != null) {
             attachments = attachments + Attachment(AttachmentType.PHOTO, currentUri.toString())
         }
-        cameraUri = null // Reset after use
+        cameraUri = null 
+    }
+
+    // Helper function to safely launch camera
+    fun launchCamera(ctx: Context, launcher: (Uri) -> Unit) {
+        try {
+            val photoFile = File.createTempFile("hologen_capture_", ".jpg", ctx.cacheDir)
+            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", photoFile)
+            cameraUri = uri
+            launcher(uri)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     // Photo Picker Launcher
@@ -169,25 +193,24 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
+                    // CAMERA - With Permission Check
                     AttachmentOption(
                         icon = Icons.Outlined.CameraAlt,
                         label = "Camera",
                         onClick = {
-                            try {
-                                val photoFile = File.createTempFile("hologen_capture_", ".jpg", context.cacheDir)
-                                val uri = FileProvider.getUriForFile(
-                                    context,
-                                    "${context.packageName}.fileprovider",
-                                    photoFile
-                                )
-                                cameraUri = uri
-                                cameraLauncher.launch(uri)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
+                            val isGranted = ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.CAMERA
+                            ) == PackageManager.PERMISSION_GRANTED
+
+                            if (isGranted) {
+                                launchCamera(context, cameraLauncher)
+                            } else {
+                                requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                             }
                             showAttachmentSheet = false
                         }
                     )
+                    // PHOTO
                     AttachmentOption(
                         icon = Icons.Outlined.Image,
                         label = "Photo",
@@ -196,6 +219,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             showAttachmentSheet = false
                         }
                     )
+                    // VIDEO
                     AttachmentOption(
                         icon = Icons.Outlined.VideoLibrary,
                         label = "Video",
@@ -204,6 +228,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             showAttachmentSheet = false
                         }
                     )
+                    // LINK
                     AttachmentOption(
                         icon = Icons.Outlined.Link,
                         label = "Link",
@@ -473,10 +498,4 @@ private fun Composer(
             onClick = onSend,
             enabled = canSend,
             modifier = Modifier
-                .clip(RoundedCornerShape(HologenMetrics.buttonRadius))
-                .background(if (canSend) HologenColors.Accent.mint else HologenColors.Background.cardSecondary)
-        ) {
-            Icon(Icons.Outlined.Send, contentDescription = stringResource(R.string.send_message), tint = HologenColors.Background.primary)
-        }
-    }
-}
+                .clip(RoundedCornerShape(HologenMetrics.bu
