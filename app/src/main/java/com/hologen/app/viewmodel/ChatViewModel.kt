@@ -1,84 +1,79 @@
 package com.hologen.app.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hologen.app.data.Attachment
 import com.hologen.app.data.ChatMessage
-import com.hologen.app.data.ChatUiState
 import com.hologen.app.data.MessageSender
-import com.hologen.app.repository.ChatRepository
-import com.hologen.app.repository.MockApiRepository
-import java.util.UUID
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
-class ChatViewModel(
-    private val repository: ChatRepository = MockApiRepository()
-) : ViewModel() {
+// Data classes for Chat State
+data class ChatUiState(
+    val messages: List<ChatMessage> = emptyList(),
+    val isProcessing: Boolean = false
+)
+
+class ChatViewModel : ViewModel() {
+
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     fun sendMessage(text: String, attachments: List<Attachment>) {
-        val trimmedText = text.trim()
-        if (trimmedText.isEmpty() && attachments.isEmpty()) return
-        if (_uiState.value.isProcessing) return
+        if (text.isBlank() && attachments.isEmpty()) return
 
-        appendMessage(
-            ChatMessage(
-                id = UUID.randomUUID().toString(),
-                text = trimmedText,
-                sender = MessageSender.USER,
-                attachments = attachments
-            )
+        // 1. Create User Message
+        val userMessage = ChatMessage(
+            id = UUID.randomUUID().toString(),
+            text = text,
+            sender = MessageSender.USER,
+            attachments = attachments
         )
-        if (attachments.isEmpty()) return
 
+        // 2. Add to State and set processing to true
+        _uiState.update { currentState ->
+            currentState.copy(
+                messages = currentState.messages + userMessage,
+                isProcessing = true
+            )
+        }
+
+        // 3. Simulate AI Response (Mock Backend)
         viewModelScope.launch {
-            _uiState.update { it.copy(isProcessing = true, scanProgress = null) }
-            runCatching {
-                val scanId = repository.createScan(trimmedText, attachments)
-                repository.streamScan(scanId).collect { progress ->
-                    _uiState.update { it.copy(scanProgress = progress) }
-                    appendMessage(
-                        ChatMessage(
-                            id = UUID.randomUUID().toString(),
-                            text = progress.message,
-                            sender = MessageSender.AI
-                        )
-                    )
-                }
-                appendMessage(
-                    ChatMessage(
-                        id = UUID.randomUUID().toString(),
-                        text = "Your hologram is ready to explore.",
-                        sender = MessageSender.AI
-                    )
-                )
-            }.onFailure { error ->
-                appendMessage(
-                    ChatMessage(
-                        id = UUID.randomUUID().toString(),
-                        text = error.message ?: "We could not complete that scan.",
-                        sender = MessageSender.AI
-                    )
+            delay(1500) // 1.5 second ka delay taaki real lage
+            
+            val aiMessage = ChatMessage(
+                id = UUID.randomUUID().toString(),
+                text = "Received! Scanning object and researching parts...",
+                sender = MessageSender.AI,
+                attachments = emptyList()
+            )
+
+            _uiState.update { currentState ->
+                currentState.copy(
+                    messages = currentState.messages + aiMessage,
+                    isProcessing = false
                 )
             }
-            _uiState.update { it.copy(isProcessing = false) }
         }
     }
 
-    private fun appendMessage(message: ChatMessage) {
-        _uiState.update { it.copy(messages = it.messages + message) }
-    }
-
+    // Factory for Compose
     companion object {
-        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = ChatViewModel() as T
+        val Factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(ChatViewModel::class.java)) {
+                    @Suppress("UNCHECKED_CAST")
+                    return ChatViewModel() as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class")
+            }
         }
     }
 }
