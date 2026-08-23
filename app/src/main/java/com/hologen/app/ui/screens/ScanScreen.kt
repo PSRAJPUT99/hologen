@@ -72,20 +72,16 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     var showAttachmentSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
-    // Camera URI state
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
 
-    // 1. Permission Launcher (Mangne ke liye)
     val requestCameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            // Permission mil gayi, ab camera kholo
             launchCamera(context, cameraLauncher)
         }
     }
 
-    // 2. Camera Launcher (Asli camera kholne ke liye)
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
@@ -96,7 +92,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         cameraUri = null 
     }
 
-    // Helper function to safely launch camera
     fun launchCamera(ctx: Context, launcher: (Uri) -> Unit) {
         try {
             val photoFile = File.createTempFile("hologen_capture_", ".jpg", ctx.cacheDir)
@@ -108,7 +103,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Photo Picker Launcher
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -117,7 +111,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Video Picker Launcher
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -171,7 +164,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Attachment Bottom Sheet
     if (showAttachmentSheet) {
         ModalBottomSheet(
             onDismissRequest = { showAttachmentSheet = false },
@@ -193,7 +185,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // CAMERA - With Permission Check
                     AttachmentOption(
                         icon = Icons.Outlined.CameraAlt,
                         label = "Camera",
@@ -210,7 +201,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             showAttachmentSheet = false
                         }
                     )
-                    // PHOTO
                     AttachmentOption(
                         icon = Icons.Outlined.Image,
                         label = "Photo",
@@ -219,7 +209,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             showAttachmentSheet = false
                         }
                     )
-                    // VIDEO
                     AttachmentOption(
                         icon = Icons.Outlined.VideoLibrary,
                         label = "Video",
@@ -228,7 +217,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             showAttachmentSheet = false
                         }
                     )
-                    // LINK
                     AttachmentOption(
                         icon = Icons.Outlined.Link,
                         label = "Link",
@@ -355,7 +343,6 @@ private fun getVideoThumbnail(context: Context, uri: Uri): Bitmap? {
         null
     }
 }
-
 @Composable
 private fun MessageBubble(message: ChatMessage) {
     val context = LocalContext.current
@@ -498,4 +485,14 @@ private fun Composer(
             onClick = onSend,
             enabled = canSend,
             modifier = Modifier
-                .clip(RoundedCornerShape(HologenMetrics.bu
+                .clip(RoundedCornerShape(HologenMetrics.buttonRadius))
+                .background(if (canSend) HologenColors.Accent.mint else HologenColors.Background.cardSecondary)
+        ) {
+            Icon(
+                Icons.Outlined.Send, 
+                contentDescription = stringResource(R.string.send_message), 
+                tint = HologenColors.Background.primary
+            )
+        }
+    }
+}
