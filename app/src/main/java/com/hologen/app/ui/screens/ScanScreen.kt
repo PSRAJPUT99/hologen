@@ -1,14 +1,7 @@
 package com.hologen.app.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,15 +43,28 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     var draft by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<Attachment>>(emptyList()) }
 
-    Column(modifier = modifier.fillMaxSize().background(HologenColors.Background.primary)) {
-        HologramViewer(modifier = Modifier.weight(3f), isLoading = uiState.isProcessing)
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(HologenColors.Background.primary)
+    ) {
+        // Top Zone: Hologram Viewer (60% space approx, weight 3f)
+        HologramViewer(
+            modifier = Modifier.weight(3f), 
+            isLoading = uiState.isProcessing
+        )
+        
+        // Bottom Zone: Chat Interface (40% space approx, weight 2f)
         Column(
             modifier = Modifier
                 .weight(2f)
                 .padding(horizontal = HologenMetrics.space16, vertical = HologenMetrics.space12),
             verticalArrangement = Arrangement.spacedBy(HologenMetrics.space12)
         ) {
-            MessageList(messages = uiState.messages, modifier = Modifier.weight(1f))
+            MessageList(
+                messages = uiState.messages, 
+                modifier = Modifier.weight(1f)
+            )
             Composer(
                 draft = draft,
                 attachments = attachments,
@@ -97,7 +103,9 @@ private fun MessageList(messages: List<ChatMessage>, modifier: Modifier) {
                 }
             }
         } else {
-            items(messages, key = { it.id }) { message -> MessageBubble(message) }
+            items(messages, key = { it.id }) { message -> 
+                MessageBubble(message) 
+            }
         }
     }
 }
@@ -133,6 +141,7 @@ private fun Composer(
     onSend: () -> Unit
 ) {
     val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty())
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -149,7 +158,7 @@ private fun Composer(
         BasicTextField(
             value = draft,
             onValueChange = onDraftChange,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f), // <-- Yahan weight safe hai kyunki ye Row ke andar hai
             enabled = enabled,
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = HologenColors.Text.primary),
             cursorBrush = SolidColor(HologenColors.Accent.mint),
@@ -167,6 +176,7 @@ private fun Composer(
                 }
             }
         )
+        
         IconButton(onClick = { onAttachment(AttachmentType.PHOTO) }, enabled = enabled) {
             Icon(Icons.Outlined.PhotoCamera, contentDescription = stringResource(R.string.attach_photo), tint = HologenColors.Text.secondary)
         }
