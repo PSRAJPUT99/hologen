@@ -7,7 +7,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -74,7 +73,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     val sheetState = rememberModalBottomSheetState()
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Model Selection States
     var showModelSheet by remember { mutableStateOf(false) }
     val modelSheetState = rememberModalBottomSheetState()
     var availableModels by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -82,14 +80,12 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     var selectedModel by remember { mutableStateOf("Select Model") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Load saved model on start
     LaunchedEffect(Unit) {
         settingsRepository.selectedModel.collect { model ->
             if (model != null) selectedModel = model
         }
     }
 
-    // 1. Camera Launcher
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
@@ -100,7 +96,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         cameraUri = null 
     }
 
-    // 2. Permission Launcher
     val requestCameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -127,30 +122,20 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(HologenColors.Background.primary)
+        modifier = modifier.fillMaxSize().background(HologenColors.Background.primary)
     ) {
-        HologramViewer(
-            modifier = Modifier.weight(3f),
-            isLoading = uiState.isProcessing
-        )
+        HologramViewer(modifier = Modifier.weight(3f), isLoading = uiState.isProcessing)
 
         Column(
-            modifier = Modifier
-                .weight(2f)
-                .padding(horizontal = HologenMetrics.space16, vertical = HologenMetrics.space12),
+            modifier = Modifier.weight(2f).padding(horizontal = HologenMetrics.space16, vertical = HologenMetrics.space12),
             verticalArrangement = Arrangement.spacedBy(HologenMetrics.space12)
         ) {
             MessageList(messages = uiState.messages, modifier = Modifier.weight(1f))
 
             if (attachments.isNotEmpty()) {
-                AttachmentChips(
-                    attachments = attachments,
-                    onRemove = { attachmentToRemove ->
-                        attachments = attachments.filter { it != attachmentToRemove }
-                    }
-                )
+                AttachmentChips(attachments = attachments, onRemove = { attachmentToRemove ->
+                    attachments = attachments.filter { it != attachmentToRemove }
+                })
             }
 
             Composer(
@@ -168,28 +153,16 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // --- ATTACHMENT SHEET (+ Menu) ---
     if (showAttachmentSheet) {
         ModalBottomSheet(
             onDismissRequest = { showAttachmentSheet = false },
             sheetState = sheetState,
             containerColor = HologenColors.Background.card
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Add Attachment",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = HologenColors.Text.primary,
-                    modifier = Modifier.padding(bottom = 24.dp)
-                )
+            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "Add Attachment", style = MaterialTheme.typography.titleMedium, color = HologenColors.Text.primary, modifier = Modifier.padding(bottom = 24.dp))
                 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     AttachmentOption(Icons.Outlined.CameraAlt, "Camera") {
                         val isGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
                         if (isGranted) {
@@ -218,15 +191,9 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                     }
                 }
 
-                // --- NEW: MODEL SELECTION SECTION ---
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = HologenColors.Background.cardSecondary)
                 
-                Text(
-                    text = "AI Model",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = HologenColors.Text.secondary,
-                    modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
-                )
+                Text(text = "AI Model", style = MaterialTheme.typography.titleSmall, color = HologenColors.Text.secondary, modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp))
 
                 OutlinedButton(
                     onClick = {
@@ -258,49 +225,29 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 ) {
                     Icon(Icons.Outlined.SmartToy, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isLoadingModels) "Fetching Models..." else selectedModel,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Start
-                    )
+                    Text(text = if (isLoadingModels) "Fetching Models..." else selectedModel, modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
                 }
-                
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
-
-// --- MODEL SELECTION SHEET ---
-    if (showModelSheet) {
+if (showModelSheet) {
         ModalBottomSheet(
             onDismissRequest = { showModelSheet = false },
             sheetState = modelSheetState,
             containerColor = HologenColors.Background.card
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Select AI Model",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = HologenColors.Text.primary,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+                Text(text = "Select AI Model", style = MaterialTheme.typography.titleLarge, color = HologenColors.Text.primary, modifier = Modifier.padding(bottom = 16.dp))
 
                 if (isLoadingModels) {
                     Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = HologenColors.Accent.mint)
                     }
                 } else if (errorMessage != null) {
-                    Text(
-                        text = "Error: $errorMessage\n\nPlease check your API Key in Settings.",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Text(text = "Error: $errorMessage\n\nPlease check your API Key in Settings.", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
                 } else if (availableModels.isEmpty()) {
-                    Text(
-                        text = "No models found. Please save a valid API Key in Settings first.",
-                        color = HologenColors.Text.secondary,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Text(text = "No models found. Please save a valid API Key in Settings first.", color = HologenColors.Text.secondary, modifier = Modifier.padding(16.dp))
                 } else {
                     LazyColumn(modifier = Modifier.height(400.dp)) {
                         items(availableModels) { model ->
@@ -323,10 +270,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
 
 @Composable
 private fun AttachmentOption(icon: ImageVector, label: String, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick).padding(8.dp)
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick).padding(8.dp)) {
         Icon(imageVector = icon, contentDescription = label, tint = HologenColors.Accent.mint, modifier = Modifier.size(32.dp))
         Spacer(modifier = Modifier.height(8.dp))
         Text(text = label, style = MaterialTheme.typography.labelMedium, color = HologenColors.Text.primary)
@@ -341,7 +285,12 @@ private fun AttachmentChips(attachments: List<Attachment>, onRemove: (Attachment
                 modifier = Modifier.clip(RoundedCornerShape(HologenMetrics.space8)).background(HologenColors.Background.cardSecondary).padding(horizontal = HologenMetrics.space8, vertical = HologenMetrics.space4),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(imageVector = when (attachment.type) { AttachmentType.PHOTO -> Icons.Outlined.Image; AttachmentType.VIDEO -> Icons.Outlined.Videocam; AttachmentType.LINK -> Icons.Outlined.Link }, contentDescription = null, tint = HologenColors.Accent.mint, modifier = Modifier.size(HologenMetrics.space16))
+                val iconVector = when (attachment.type) {
+                    AttachmentType.PHOTO -> Icons.Outlined.Image
+                    AttachmentType.VIDEO -> Icons.Outlined.Videocam
+                    AttachmentType.LINK -> Icons.Outlined.Link
+                }
+                Icon(imageVector = iconVector, contentDescription = null, tint = HologenColors.Accent.mint, modifier = Modifier.size(HologenMetrics.space16))
                 Spacer(modifier = Modifier.width(HologenMetrics.space4))
                 Text(text = attachment.type.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall, color = HologenColors.Text.primary)
                 Spacer(modifier = Modifier.width(HologenMetrics.space4))
@@ -409,17 +358,69 @@ private fun MessageBubble(message: ChatMessage) {
             }
         }
         if (message.text.isNotBlank()) {
-            Text(text = message.text, modifier = Modifier.clip(RoundedCornerShape(HologenMetrics.historyCardRadius)).background(if (message.sender == MessageSender.USER) HologenColors.Background.card else HologenColors.Background.cardSecondary).padding(horizontal = HologenMetrics.space12, vertical = HologenMetrics.space8), style = MaterialTheme.typography.bodyMedium, color = HologenColors.Text.primary)
+            Text(
+                text = message.text,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(HologenMetrics.historyCardRadius))
+                    .background(
+                        if (message.sender == MessageSender.USER) HologenColors.Background.card
+                        else HologenColors.Background.cardSecondary
+                    )
+                    .padding(horizontal = HologenMetrics.space12, vertical = HologenMetrics.space8),
+                style = MaterialTheme.typography.bodyMedium,
+                color = HologenColors.Text.primary
+            )
         }
     }
 }
 
 @Composable
-private fun Composer(draft: String, attachments: List<Attachment>, enabled: Boolean, onDraftChange: (String) -> Unit, onShowAttachmentMenu: () -> Unit, onSend: () -> Unit) {
+private fun Composer(
+    draft: String,
+    attachments: List<Attachment>,
+    enabled: Boolean,
+    onDraftChange: (String) -> Unit,
+    onShowAttachmentMenu: () -> Unit,
+    onSend: () -> Unit
+) {
     val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty())
-    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(HologenMetrics.buttonRadius)).background(HologenColors.Background.card).padding(start = HologenMetrics.space16, end = HologenMetrics.space8, top = HologenMetrics.space8, bottom = HologenMetrics.space8), verticalAlignment = Alignment.CenterVertically) {
-        BasicTextField(value = draft, onValueChange = onDraftChange, modifier = Modifier.weight(1f), enabled = enabled, textStyle = MaterialTheme.typography.bodyMedium.copy(color = HologenColors.Text.primary), cursorBrush = SolidColor(HologenColors.Accent.mint), singleLine = true, decorationBox = { innerTextField -> Box { if (draft.isEmpty()) { Text(text = stringResource(R.string.chat_input_hint), style = MaterialTheme.typography.bodyMedium, color = HologenColors.Text.secondary) } innerTextField() } })
-        IconButton(onClick = onShowAttachmentMenu, enabled = enabled) { Icon(Icons.Outlined.Add, contentDescription = "Add Attachment", tint = HologenColors.Text.secondary) }
-        IconButton(onClick = onSend, enabled = canSend, modifier = Modifier.clip(RoundedCornerShape(HologenMetrics.buttonRadius)).background(if (canSend) HologenColors.Accent.mint else HologenColors.Background.cardSecondary)) { Icon(Icons.Outlined.Send, contentDescription = stringResource(R.string.send_message), tint = HologenColors.Background.primary) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(HologenMetrics.buttonRadius))
+            .background(HologenColors.Background.card)
+            .padding(start = HologenMetrics.space16, end = HologenMetrics.space8, top = HologenMetrics.space8, bottom = HologenMetrics.space8),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BasicTextField(
+            value = draft,
+            onValueChange = onDraftChange,
+            modifier = Modifier.weight(1f),
+            enabled = enabled,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = HologenColors.Text.primary),
+            cursorBrush = SolidColor(HologenColors.Accent.mint),
+            singleLine = true,
+            decorationBox = { innerTextField ->
+                Box {
+                    if (draft.isEmpty()) {
+                        Text(text = stringResource(R.string.chat_input_hint), style = MaterialTheme.typography.bodyMedium, color = HologenColors.Text.secondary)
+                    }
+                    innerTextField()
+                }
+            }
+        )
+
+        IconButton(onClick = onShowAttachmentMenu, enabled = enabled) {
+            Icon(Icons.Outlined.Add, contentDescription = "Add Attachment", tint = HologenColors.Text.secondary)
+        }
+
+        IconButton(
+            onClick = onSend,
+            enabled = canSend,
+            modifier = Modifier.clip(RoundedCornerShape(HologenMetrics.buttonRadius)).background(if (canSend) HologenColors.Accent.mint else HologenColors.Background.cardSecondary)
+        ) {
+            Icon(Icons.Outlined.Send, contentDescription = stringResource(R.string.send_message), tint = HologenColors.Background.primary)
+        }
     }
 }
