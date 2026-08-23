@@ -55,13 +55,20 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     var draft by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<Attachment>>(emptyList()) }
 
-    // Photo/Video Picker Launcher
-    val mediaPickerLauncher = rememberLauncherForActivityResult(
+    // Separate Launchers for Photo and Video
+    val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
-            val type = if (it.toString().contains("video", ignoreCase = true)) AttachmentType.VIDEO else AttachmentType.PHOTO
-            attachments = attachments + Attachment(type, it.toString())
+            attachments = attachments + Attachment(AttachmentType.PHOTO, it.toString())
+        }
+    }
+
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let {
+            attachments = attachments + Attachment(AttachmentType.VIDEO, it.toString())
         }
     }
 
@@ -105,10 +112,10 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 onDraftChange = { draft = it },
                 onAttachment = { type ->
                     when (type) {
-                        AttachmentType.PHOTO -> mediaPickerLauncher.launch(
+                        AttachmentType.PHOTO -> photoPickerLauncher.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
-                        AttachmentType.VIDEO -> mediaPickerLauncher.launch(
+                        AttachmentType.VIDEO -> videoPickerLauncher.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
                         )
                         AttachmentType.LINK -> {
@@ -277,7 +284,6 @@ private fun MessageBubble(message: ChatMessage) {
                         }
                     }
                     AttachmentType.LINK -> {
-                        // Link icon display
                         Icon(
                             imageVector = Icons.Outlined.Link,
                             contentDescription = "Link",
