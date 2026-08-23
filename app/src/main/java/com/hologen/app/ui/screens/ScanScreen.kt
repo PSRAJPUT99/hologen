@@ -66,26 +66,25 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     var draft by remember { mutableStateOf("") }
     var attachments by remember { mutableStateOf<List<Attachment>>(emptyList()) }
     
-    // State for the attachment bottom sheet
     var showAttachmentSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
-    // Create a URI for the camera photo
-    var cameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    // Camera URI state
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Camera Launcher (Opens actual camera)
+    // Camera Launcher
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        // FIX: Local variable copy to avoid smart cast issue with delegated property
-        val currentUri = cameraPhotoUri
+        // Local variable copy to fix smart cast issue
+        val currentUri = cameraUri
         if (success && currentUri != null) {
             attachments = attachments + Attachment(AttachmentType.PHOTO, currentUri.toString())
         }
-        cameraPhotoUri = null // Reset
+        cameraUri = null // Reset after use
     }
 
-    // Photo Picker Launcher (Opens gallery for photos)
+    // Photo Picker Launcher
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -94,7 +93,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Video Picker Launcher (Opens gallery for videos)
+    // Video Picker Launcher
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -108,13 +107,11 @@ fun ScanScreen(modifier: Modifier = Modifier) {
             .fillMaxSize()
             .background(HologenColors.Background.primary)
     ) {
-        // Top Zone: Hologram Stage
         HologramViewer(
             modifier = Modifier.weight(3f),
             isLoading = uiState.isProcessing
         )
 
-        // Bottom Zone: Chat Interface
         Column(
             modifier = Modifier
                 .weight(2f)
@@ -126,7 +123,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f)
             )
 
-            // Attachment Chips
             if (attachments.isNotEmpty()) {
                 AttachmentChips(
                     attachments = attachments,
@@ -151,7 +147,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Attachment Bottom Sheet (The "+" Menu)
+    // Attachment Bottom Sheet
     if (showAttachmentSheet) {
         ModalBottomSheet(
             onDismissRequest = { showAttachmentSheet = false },
@@ -173,30 +169,25 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // CAMERA - Opens actual camera
                     AttachmentOption(
                         icon = Icons.Outlined.CameraAlt,
                         label = "Camera",
                         onClick = {
                             try {
-                                val photoFile = File.createTempFile(
-                                    "hologen_capture_",
-                                    ".jpg",
-                                    context.cacheDir
-                                )
-                                cameraPhotoUri = FileProvider.getUriForFile(
+                                val photoFile = File.createTempFile("hologen_capture_", ".jpg", context.cacheDir)
+                                val uri = FileProvider.getUriForFile(
                                     context,
                                     "${context.packageName}.fileprovider",
                                     photoFile
                                 )
-                                cameraLauncher.launch(cameraPhotoUri)
+                                cameraUri = uri
+                                cameraLauncher.launch(uri)
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
                             showAttachmentSheet = false
                         }
                     )
-                    // PHOTO - Opens gallery for existing photos
                     AttachmentOption(
                         icon = Icons.Outlined.Image,
                         label = "Photo",
@@ -205,7 +196,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             showAttachmentSheet = false
                         }
                     )
-                    // VIDEO - Opens gallery for videos
                     AttachmentOption(
                         icon = Icons.Outlined.VideoLibrary,
                         label = "Video",
@@ -214,7 +204,6 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             showAttachmentSheet = false
                         }
                     )
-                    // LINK
                     AttachmentOption(
                         icon = Icons.Outlined.Link,
                         label = "Link",
@@ -224,14 +213,12 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                         }
                     )
                 }
-                
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
 }
 
-// Helper Composable for Attachment Options in the Sheet
 @Composable
 private fun AttachmentOption(icon: ImageVector, label: String, onClick: () -> Unit) {
     Column(
@@ -478,7 +465,6 @@ private fun Composer(
             }
         )
 
-        // The NEW "+" Button
         IconButton(onClick = onShowAttachmentMenu, enabled = enabled) {
             Icon(Icons.Outlined.Add, contentDescription = "Add Attachment", tint = HologenColors.Text.secondary)
         }
@@ -490,4 +476,7 @@ private fun Composer(
                 .clip(RoundedCornerShape(HologenMetrics.buttonRadius))
                 .background(if (canSend) HologenColors.Accent.mint else HologenColors.Background.cardSecondary)
         ) {
-   
+            Icon(Icons.Outlined.Send, contentDescription = stringResource(R.string.send_message), tint = HologenColors.Background.primary)
+        }
+    }
+}
