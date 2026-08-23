@@ -54,8 +54,12 @@ import com.hologen.app.data.MessageSender
 import com.hologen.app.ui.theme.HologenColors
 import com.hologen.app.ui.theme.HologenMetrics
 import com.hologen.app.viewmodel.ChatViewModel
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class) // <-- YE LINE ADD KI HAI (Experimental API allow karne ke liye)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -68,7 +72,20 @@ fun ScanScreen(modifier: Modifier = Modifier) {
     var showAttachmentSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
-    // Separate Launchers for Photo and Video
+    // Create a URI for the camera photo
+    var cameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Camera Launcher (Opens actual camera)
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && cameraPhotoUri != null) {
+            attachments = attachments + Attachment(AttachmentType.PHOTO, cameraPhotoUri.toString())
+        }
+        cameraPhotoUri = null // Reset
+    }
+
+    // Photo Picker Launcher (Opens gallery for photos)
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -77,6 +94,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
         }
     }
 
+    // Video Picker Launcher (Opens gallery for videos)
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -123,7 +141,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                 attachments = attachments,
                 enabled = !uiState.isProcessing,
                 onDraftChange = { draft = it },
-                onShowAttachmentMenu = { showAttachmentSheet = true }, // Open sheet on + click
+                onShowAttachmentMenu = { showAttachmentSheet = true },
                 onSend = {
                     chatViewModel.sendMessage(draft, attachments)
                     draft = ""
@@ -155,14 +173,27 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
+                    // CAMERA - Opens actual camera
                     AttachmentOption(
                         icon = Icons.Outlined.CameraAlt,
                         label = "Camera",
                         onClick = {
-                            photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            // Create URI for camera photo
+                            val photoFile = File.createTempFile(
+                                "hologen_capture_",
+                                ".jpg",
+                                context.cacheDir
+                            )
+                            cameraPhotoUri = androidx.core.content.FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                photoFile
+                            )
+                            cameraLauncher.launch(cameraPhotoUri)
                             showAttachmentSheet = false
                         }
                     )
+                    // PHOTO - Opens gallery for existing photos
                     AttachmentOption(
                         icon = Icons.Outlined.Image,
                         label = "Photo",
@@ -171,6 +202,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             showAttachmentSheet = false
                         }
                     )
+                    // VIDEO - Opens gallery for videos
                     AttachmentOption(
                         icon = Icons.Outlined.VideoLibrary,
                         label = "Video",
@@ -179,6 +211,7 @@ fun ScanScreen(modifier: Modifier = Modifier) {
                             showAttachmentSheet = false
                         }
                     )
+                    // LINK
                     AttachmentOption(
                         icon = Icons.Outlined.Link,
                         label = "Link",
@@ -237,7 +270,7 @@ private fun AttachmentChips(
             ) {
                 Icon(
                     imageVector = when (attachment.type) {
-                        AttachmentType.PHOTO -> Icons.Outlined.Image // <-- FIX: PhotoCamera ki jagah Image use kiya
+                        AttachmentType.PHOTO -> Icons.Outlined.Image
                         AttachmentType.VIDEO -> Icons.Outlined.Videocam
                         AttachmentType.LINK -> Icons.Outlined.Link
                     },
