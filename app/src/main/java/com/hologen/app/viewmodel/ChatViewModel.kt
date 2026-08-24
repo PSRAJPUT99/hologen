@@ -1,12 +1,16 @@
 package com.hologen.app.viewmodel
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.hologen.app.data.Attachment
+import com.hologen.app.data.AttachmentType
 import com.hologen.app.data.ChatMessage
 import com.hologen.app.data.MessageSender
 import com.hologen.app.data.SettingsRepository
@@ -20,10 +24,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
+import android.util.Base64
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -69,8 +75,15 @@ class ChatViewModel(application: Application) : ViewModel() {
                     throw Exception("API Key missing! Please add it in Settings.")
                 }
 
-                // Call the actual API
-                val fullResponse = callOpenRouterAPI(apiKey, model, text)
+                // Check if there are image attachments
+                val hasImages = attachments.any { it.type == AttachmentType.PHOTO }
+                
+                // Call the actual API (with or without vision)
+                val fullResponse = if (hasImages) {
+                    callOpenRouterVisionAPI(apiKey, model, text, attachments)
+                } else {
+                    callOpenRouterAPI(apiKey, model, text)
+                }
                 
                 // 3. Stream the response word by word
                 streamAIResponse(fullResponse)
@@ -133,7 +146,136 @@ class ChatViewModel(application: Application) : ViewModel() {
         )
     }
 
-    // --- NETWORK LOGIC ---
+    // --- VISION API (For Images) ---
+    private suspend fun callOpenRouterVisionAPI(
+        apiKey: String, 
+        model: String, 
+        prompt: String,
+        attachments: List<Attachment>
+    ): String {
+        return withContext(Dispatchers.IO) {
+            val url = URL("https://openrouter.ai/api/v1/chat/completions")
+            val connection = url.openConnection() as HttpURLConnection
+            
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Authorization", "Bearer $apiKey")
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("HTTP-Referer", "https://github.com/hologen-app") 
+            connection.setRequestProperty("X-Title", "Hologen App") 
+            connection.doOutput = true
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000
+
+            // Create JSON Body
+            val jsonBody = JSONObject()
+            jsonBody.put("model", model)
+            jsonBody.put("max_tokens", 500)
+            
+            val messagesArray = JSONArray()
+            
+            // System Prompt for Hologen Vision Assistant
+            val systemMessage = JSONObject()
+            systemMessage.put("role", "system")
+            systemMessage.put("content", 
+                "You are Omi, the AI vision assistant for Hologen - a professional 3D hologram app. " +
+                "When users send you images, identify the object clearly and describe its key features, parts, and technical specifications. " +
+                "Be concise but informative. If asked to create a 3D model, confirm what object you see."
+            )
+            messagesArray.put(systemMessage)
+            
+            // User message with text and images
+            val userMessageObj = JSONObject()
+            userMessageObj.put("role", "user")
+            
+            val contentArray = JSONArray()
+            
+            // Add text prompt if exists
+            if (prompt.isNotBlank()) {
+                val textObj = JSONObject()
+                textObj.put("type", "text")
+                textObj.put("text", prompt)
+                contentArray.put(textObj)
+            }
+            
+            // Add images
+            for (attachment in attachments) {
+                if (attachment.type == AttachmentType.PHOTO) {
+                    try {
+                        val base64Image = imageToBase64(attachment.uri)
+                        if (base64Image != null) {
+                            val imageObj = JSONObject()
+                            imageObj.put("type", "image_url")
+                            val imageUrlObj = JSONObject()
+                            imageUrlObj.put("url", "data:image/jpeg;base64,$base64Image")
+                            imageObj.put("image_url", imageUrlObj)
+                            contentArray.put(imageObj)
+                        }
+                    } catch (e: Exception) {
+                        // Skip if image conversion fails
+                    }
+                }
+            }
+            
+            userMessageObj.put("content", contentArray)
+            messagesArray.put(userMessageObj)
+            
+            jsonBody.put("messages", messagesArray)
+
+            // Send Request
+            val os = connection.outputStream
+            val writer = OutputStreamWriter(os, "UTF-8")
+            writer.write(jsonBody.toString())
+            writer.flush()
+            writer.close()
+            os.close()
+
+            // Read Response
+            val responseCode = connection.responseCode
+            val inputStream = if (responseCode == HttpURLConnection.HTTP_OK) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            }
+
+            val responseString = inputStream?.bufferedReader()?.readText() ?: ""
+            connection.disconnect()
+
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                try {
+                    val jsonResponse = JSONObject(responseString)
+                    val choices = jsonResponse.getJSONArray("choices")
+                    if (choices.length() > 0) {
+                        val messageObj = choices.getJSONObject(0).getJSONObject("message")
+                        return@withContext messageObj.getString("content")
+                    } else {
+                        return@withContext "No response from AI."
+                    }
+                } catch (e: Exception) {
+                    return@withContext "Failed to parse AI response: ${e.message}"
+                }
+            } else {
+                return@withContext "API Error ($responseCode): $responseString"
+            }
+        }
+    }
+
+    // Convert image URI to Base64
+    private fun imageToBase64(uri: Uri): String? {
+        return try {
+            val inputStream = javaClass.classLoader?.getResourceAsStream(uri.toString())
+                ?: return null
+            
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            val byteArrayOutputStream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, byteArrayOutputStream)
+            val byteArray = byteArrayOutputStream.toByteArray()
+            android.util.Base64.encodeToString(byteArray, android.util.Base64.NO_WRAP)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // --- TEXT API (For text-only) ---
     private suspend fun callOpenRouterAPI(apiKey: String, model: String, prompt: String): String {
         return withContext(Dispatchers.IO) {
             val url = URL("https://openrouter.ai/api/v1/chat/completions")
