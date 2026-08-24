@@ -38,99 +38,69 @@ data class ChatUiState(
     val error: String? = null
 )
 
+enum class AIProvider { GEMINI, OPENROUTER, OPENAI }
+
 class ChatViewModel(private val application: Application) : ViewModel() {
-
     private val settingsRepository = SettingsRepository(application)
-
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     fun sendMessage(text: String, attachments: List<Attachment>) {
         if (text.isBlank() && attachments.isEmpty()) return
 
-        // 1. Add User Message to UI immediately
-        val userMessage = ChatMessage(
-            id = UUID.randomUUID().toString(),
-            text = text,
-            attachments = attachments,
-            sender = MessageSender.USER
-        )
-
+        val userMessage = ChatMessage(id = UUID.randomUUID().toString(), text = text, attachments = attachments, sender = MessageSender.USER)
         val currentMessages = _uiState.value.messages.toMutableList()
         currentMessages.add(userMessage)
-        _uiState.value = _uiState.value.copy(
-            messages = currentMessages, 
-            isProcessing = true, 
-            isTyping = true,
-            error = null
-        )
+        _uiState.value = _uiState.value.copy(messages = currentMessages, isProcessing = true, isTyping = true, error = null)
 
-        // 2. Launch Coroutine to call OpenRouter API
         viewModelScope.launch {
             try {
                 val apiKey = settingsRepository.apiKey.first()
                 val model = settingsRepository.selectedModel.first() ?: "openai/gpt-4o-mini"
 
-                if (apiKey.isNullOrBlank()) {
-                    throw Exception("API Key missing! Please add it in Settings.")
-                }
+                if (apiKey.isNullOrBlank()) throw Exception("API Key missing! Please add it in Settings.")
 
-                // Check if there are image attachments
+                val provider = detectProvider(apiKey)
                 val hasImages = attachments.any { it.type == AttachmentType.PHOTO }
                 
-                // Call the actual API (with or without vision)
-                val fullResponse = if (hasImages) {
-                    callOpenRouterVisionAPI(apiKey, model, text, attachments)
-                } else {
-                    callOpenRouterAPI(apiKey, model, text)
+                val fullResponse = when (provider) {
+                    AIProvider.GEMINI -> callGeminiAPI(apiKey, text, attachments)
+                    AIProvider.OPENROUTER -> callOpenRouterAPI(apiKey, model, text, attachments)
+                    AIProvider.OPENAI -> callOpenAIAPI(apiKey, model, text, attachments)
                 }
                 
-                // 3. Stream the response word by word
                 streamAIResponse(fullResponse)
-
             } catch (e: Exception) {
-                // Handle Error
-                val errorMessage = ChatMessage(
-                    id = UUID.randomUUID().toString(),
-                    text = "Error: ${e.message ?: "Unknown error occurred"}",
-                    attachments = emptyList(),
-                    sender = MessageSender.AI
-                )
+                val errorMessage = ChatMessage(id = UUID.randomUUID().toString(), text = "Error: ${e.message ?: "Unknown error"}", attachments = emptyList(), sender = MessageSender.AI)
                 val updatedMessages = _uiState.value.messages.toMutableList()
                 updatedMessages.add(errorMessage)
-                _uiState.value = _uiState.value.copy(
-                    messages = updatedMessages, 
-                    isProcessing = false, 
-                    isTyping = false,
-                    error = e.message
-                )
+                _uiState.value = _uiState.value.copy(messages = updatedMessages, isProcessing = false, isTyping = false, error = e.message)
             }
         }
     }
 
-    // Stream AI response word by word for professional effect
+    private fun detectProvider(apiKey: String): AIProvider {
+        return when {
+            apiKey.startsWith("AIza") -> AIProvider.GEMINI
+            apiKey.startsWith("sk-or-v1") -> AIProvider.OPENROUTER
+            apiKey.startsWith("sk-") -> AIProvider.OPENAI
+            else -> AIProvider.OPENROUTER // Default fallback
+        }
+    }
+
     private suspend fun streamAIResponse(fullResponse: String) {
         val words = fullResponse.split(" ")
         var currentText = ""
-        
-        // Create AI message with empty text
         val aiMessageId = UUID.randomUUID().toString()
-        val aiMessage = ChatMessage(
-            id = aiMessageId,
-            text = "",
-            attachments = emptyList(),
-            sender = MessageSender.AI
-        )
+        val aiMessage = ChatMessage(id = aiMessageId, text = "", attachments = emptyList(), sender = MessageSender.AI)
         
         val updatedMessages = _uiState.value.messages.toMutableList()
         updatedMessages.add(aiMessage)
         _uiState.value = _uiState.value.copy(messages = updatedMessages, isTyping = true)
 
-        // Stream each word with delay
         words.forEachIndexed { index, word ->
-            delay(50) // 50ms delay between words for natural typing effect
+            delay(40)
             currentText += if (index == 0) word else " $word"
-            
             val messages = _uiState.value.messages.toMutableList()
             val aiMessageIndex = messages.indexOfFirst { it.id == aiMessageId }
             if (aiMessageIndex != -1) {
@@ -138,227 +108,178 @@ class ChatViewModel(private val application: Application) : ViewModel() {
                 _uiState.value = _uiState.value.copy(messages = messages)
             }
         }
-
-        // Done typing
-        _uiState.value = _uiState.value.copy(
-            isProcessing = false, 
-            isTyping = false
-        )
+        _uiState.value = _uiState.value.copy(isProcessing = false, isTyping = false)
     }
 
-    // --- VISION API (For Images) ---
-    private suspend fun callOpenRouterVisionAPI(
-        apiKey: String, 
-        model: String, 
-        prompt: String,
-        attachments: List<Attachment>
-    ): String {
+    // --- GEMINI API ---
+    private suspend fun callGeminiAPI(apiKey: String, prompt: String, attachments: List<Attachment>): String {
+        return withContext(Dispatchers.IO) {
+            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.doOutput = true
+            connection.connectTimeout = 30000; connection.readTimeout = 60000
+
+            val jsonBody = JSONObject()
+            val contentsArray = JSONArray()
+            val contentObj = JSONObject()
+            val partsArray = JSONArray()
+            
+            if (prompt.isNotBlank()) { val t = JSONObject(); t.put("text", prompt); partsArray.put(t) }
+            
+            for (att in attachments) {
+                if (att.type == AttachmentType.PHOTO) {
+                    val b64 = imageToBase64(att.uri)
+                    if (b64 != null) {
+                        val img = JSONObject()
+                        img.put("inline_data", JSONObject().apply { put("mime_type", "image/jpeg"); put("data", b64) })
+                        partsArray.put(img)
+                    }
+                }
+            }
+            contentObj.put("parts", partsArray); contentsArray.put(contentObj)
+            jsonBody.put("contents", contentsArray)
+            jsonBody.put("generationConfig", JSONObject().put("maxOutputTokens", 500))
+
+            sendRequest(connection, jsonBody)
+            parseGeminiResponse(connection)
+        }
+    }
+
+    // --- OPENROUTER API ---
+    private suspend fun callOpenRouterAPI(apiKey: String, model: String, prompt: String, attachments: List<Attachment>): String {
         return withContext(Dispatchers.IO) {
             val url = URL("https://openrouter.ai/api/v1/chat/completions")
             val connection = url.openConnection() as HttpURLConnection
-            
             connection.requestMethod = "POST"
             connection.setRequestProperty("Authorization", "Bearer $apiKey")
             connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("HTTP-Referer", "https://github.com/hologen-app") 
-            connection.setRequestProperty("X-Title", "Hologen App") 
+            connection.setRequestProperty("HTTP-Referer", "https://github.com/hologen-app")
+            connection.setRequestProperty("X-Title", "Hologen App")
             connection.doOutput = true
-            connection.connectTimeout = 30000
-            connection.readTimeout = 60000
+            connection.connectTimeout = 30000; connection.readTimeout = 60000
 
-            // Create JSON Body
             val jsonBody = JSONObject()
             jsonBody.put("model", model)
             jsonBody.put("max_tokens", 500)
             
             val messagesArray = JSONArray()
+            val sysMsg = JSONObject(); sysMsg.put("role", "system"); sysMsg.put("content", "You are Omi, a professional AI assistant for Hologen 3D app. Identify objects and describe technical parts concisely.")
+            messagesArray.put(sysMsg)
             
-            // System Prompt for Hologen Vision Assistant
-            val systemMessage = JSONObject()
-            systemMessage.put("role", "system")
-            systemMessage.put("content", 
-                "You are Omi, the AI vision assistant for Hologen - a professional 3D hologram app. " +
-                "When users send you images, identify the object clearly and describe its key features, parts, and technical specifications. " +
-                "Be concise but informative. If asked to create a 3D model, confirm what object you see."
-            )
-            messagesArray.put(systemMessage)
+            val userMsg = JSONObject(); userMsg.put("role", "user")
             
-            // User message with text and images
-            val userMessageObj = JSONObject()
-            userMessageObj.put("role", "user")
-            
-            val contentArray = JSONArray()
-            
-            // Add text prompt if exists
-            if (prompt.isNotBlank()) {
-                val textObj = JSONObject()
-                textObj.put("type", "text")
-                textObj.put("text", prompt)
-                contentArray.put(textObj)
-            }
-            
-            // Add images
-            for (attachment in attachments) {
-                if (attachment.type == AttachmentType.PHOTO) {
-                    try {
-                        val base64Image = imageToBase64(attachment.uri)
-                        if (base64Image != null) {
-                            val imageObj = JSONObject()
-                            imageObj.put("type", "image_url")
-                            val imageUrlObj = JSONObject()
-                            imageUrlObj.put("url", "data:image/jpeg;base64,$base64Image")
-                            imageObj.put("image_url", imageUrlObj)
-                            contentArray.put(imageObj)
+            val hasImages = attachments.any { it.type == AttachmentType.PHOTO }
+            if (hasImages) {
+                val contentArray = JSONArray()
+                if (prompt.isNotBlank()) { val t = JSONObject(); t.put("type", "text"); t.put("text", prompt); contentArray.put(t) }
+                for (att in attachments) {
+                    if (att.type == AttachmentType.PHOTO) {
+                        val b64 = imageToBase64(att.uri)
+                        if (b64 != null) {
+                            val img = JSONObject(); img.put("type", "image_url"); img.put("image_url", JSONObject().put("url", "data:image/jpeg;base64,$b64")); contentArray.put(img)
                         }
-                    } catch (e: Exception) {
-                        // Skip if image conversion fails
                     }
                 }
+                userMsg.put("content", contentArray)
+            } else {
+                userMsg.put("content", prompt)
             }
-            
-            userMessageObj.put("content", contentArray)
-            messagesArray.put(userMessageObj)
-            
+            messagesArray.put(userMsg)
             jsonBody.put("messages", messagesArray)
 
-            // Send Request
-            val os = connection.outputStream
-            val writer = OutputStreamWriter(os, "UTF-8")
-            writer.write(jsonBody.toString())
-            writer.flush()
-            writer.close()
-            os.close()
-
-            // Read Response
-            val responseCode = connection.responseCode
-            val inputStream = if (responseCode == HttpURLConnection.HTTP_OK) {
-                connection.inputStream
-            } else {
-                connection.errorStream
-            }
-
-            val responseString = inputStream?.bufferedReader()?.readText() ?: ""
-            connection.disconnect()
-
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                try {
-                    val jsonResponse = JSONObject(responseString)
-                    val choices = jsonResponse.getJSONArray("choices")
-                    if (choices.length() > 0) {
-                        val messageObj = choices.getJSONObject(0).getJSONObject("message")
-                        return@withContext messageObj.getString("content")
-                    } else {
-                        return@withContext "No response from AI."
-                    }
-                } catch (e: Exception) {
-                    return@withContext "Failed to parse AI response: ${e.message}"
-                }
-            } else {
-                return@withContext "API Error ($responseCode): $responseString"
-            }
+            sendRequest(connection, jsonBody)
+            parseOpenRouterResponse(connection)
         }
     }
 
-    // Convert image URI String to Base64 properly using ContentResolver
+    // --- OPENAI API (Direct) ---
+    private suspend fun callOpenAIAPI(apiKey: String, model: String, prompt: String, attachments: List<Attachment>): String {
+        return withContext(Dispatchers.IO) {
+            val url = URL("https://api.openai.com/v1/chat/completions")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Authorization", "Bearer $apiKey")
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.doOutput = true
+            connection.connectTimeout = 30000; connection.readTimeout = 60000
+
+            val jsonBody = JSONObject()
+            jsonBody.put("model", model)
+            jsonBody.put("max_tokens", 500)
+            
+            val messagesArray = JSONArray()
+            val userMsg = JSONObject(); userMsg.put("role", "user")
+            
+            val hasImages = attachments.any { it.type == AttachmentType.PHOTO }
+            if (hasImages) {
+                val contentArray = JSONArray()
+                if (prompt.isNotBlank()) { val t = JSONObject(); t.put("type", "text"); t.put("text", prompt); contentArray.put(t) }
+                for (att in attachments) {
+                    if (att.type == AttachmentType.PHOTO) {
+                        val b64 = imageToBase64(att.uri)
+                        if (b64 != null) {
+                            val img = JSONObject(); img.put("type", "image_url"); img.put("image_url", JSONObject().put("url", "data:image/jpeg;base64,$b64")); contentArray.put(img)
+                        }
+                    }
+                }
+                userMsg.put("content", contentArray)
+            } else {
+                userMsg.put("content", prompt)
+            }
+            messagesArray.put(userMsg)
+            jsonBody.put("messages", messagesArray)
+
+            sendRequest(connection, jsonBody)
+            parseOpenRouterResponse(connection) // Same JSON structure for choices
+        }
+    }
+
+    // --- HELPERS ---
+    private fun sendRequest(connection: HttpURLConnection, jsonBody: JSONObject) {
+        val os = connection.outputStream
+        OutputStreamWriter(os, "UTF-8").apply { write(jsonBody.toString()); flush(); close() }
+        os.close()
+    }
+
+    private fun parseOpenRouterResponse(connection: HttpURLConnection): String {
+        val code = connection.responseCode
+        val stream = if (code == 200) connection.inputStream else connection.errorStream
+        val res = stream?.bufferedReader()?.readText() ?: ""
+        connection.disconnect()
+        return if (code == 200) {
+            try { JSONObject(res).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content") } 
+            catch (e: Exception) { "Failed to parse response." }
+        } else { "API Error ($code): $res" }
+    }
+
+    private fun parseGeminiResponse(connection: HttpURLConnection): String {
+        val code = connection.responseCode
+        val stream = if (code == 200) connection.inputStream else connection.errorStream
+        val res = stream?.bufferedReader()?.readText() ?: ""
+        connection.disconnect()
+        return if (code == 200) {
+            try { JSONObject(res).getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text") }
+            catch (e: Exception) { "Failed to parse Gemini response." }
+        } else { "Gemini Error ($code): $res" }
+    }
+
     private fun imageToBase64(uriString: String): String? {
         return try {
             val uri = Uri.parse(uriString)
-            val inputStream = application.contentResolver.openInputStream(uri)
-            if (inputStream == null) return null
-            
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            
-            val byteArrayOutputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, byteArrayOutputStream)
-            val byteArray = byteArrayOutputStream.toByteArray()
-            Base64.encodeToString(byteArray, Base64.NO_WRAP)
-        } catch (e: Exception) {
-            null
-        }
+            val inputStream = application.contentResolver.openInputStream(uri) ?: return null
+            val bitmap = BitmapFactory.decodeStream(inputStream); inputStream.close()
+            val bos = ByteArrayOutputStream(); bitmap.compress(Bitmap.CompressFormat.JPEG, 80, bos)
+            Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP)
+        } catch (e: Exception) { null }
     }
 
-    // --- TEXT API (For text-only) ---
-    private suspend fun callOpenRouterAPI(apiKey: String, model: String, prompt: String): String {
-        return withContext(Dispatchers.IO) {
-            val url = URL("https://openrouter.ai/api/v1/chat/completions")
-            val connection = url.openConnection() as HttpURLConnection
-            
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Authorization", "Bearer $apiKey")
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("HTTP-Referer", "https://github.com/hologen-app") 
-            connection.setRequestProperty("X-Title", "Hologen App") 
-            connection.doOutput = true
-            connection.connectTimeout = 30000
-            connection.readTimeout = 60000
-
-            val jsonBody = JSONObject()
-            jsonBody.put("model", model)
-            jsonBody.put("max_tokens", 500)
-            
-            val messagesArray = JSONArray()
-            
-            val systemMessage = JSONObject()
-            systemMessage.put("role", "system")
-            systemMessage.put("content", 
-                "You are Omi, the AI assistant for Hologen - a professional 3D hologram and object visualization app. " +
-                "Your role is to help users identify objects, understand their parts, and visualize them in 3D. " +
-                "Be professional, concise, and helpful. When describing objects, focus on technical details and components. " +
-                "Keep responses clear and structured."
-            )
-            messagesArray.put(systemMessage)
-            
-            val userMessageObj = JSONObject()
-            userMessageObj.put("role", "user")
-            userMessageObj.put("content", prompt)
-            messagesArray.put(userMessageObj)
-            
-            jsonBody.put("messages", messagesArray)
-
-            val os = connection.outputStream
-            val writer = OutputStreamWriter(os, "UTF-8")
-            writer.write(jsonBody.toString())
-            writer.flush()
-            writer.close()
-            os.close()
-
-            val responseCode = connection.responseCode
-            val inputStream = if (responseCode == HttpURLConnection.HTTP_OK) {
-                connection.inputStream
-            } else {
-                connection.errorStream
-            }
-
-            val responseString = inputStream?.bufferedReader()?.readText() ?: ""
-            connection.disconnect()
-
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                try {
-                    val jsonResponse = JSONObject(responseString)
-                    val choices = jsonResponse.getJSONArray("choices")
-                    if (choices.length() > 0) {
-                        val messageObj = choices.getJSONObject(0).getJSONObject("message")
-                        return@withContext messageObj.getString("content")
-                    } else {
-                        return@withContext "No response from AI."
-                    }
-                } catch (e: Exception) {
-                    return@withContext "Failed to parse AI response: ${e.message}"
-                }
-            } else {
-                return@withContext "API Error ($responseCode): $responseString"
-            }
-        }
-    }
-
-    // --- FACTORY ---
     companion object {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val app = checkNotNull(extras[AndroidViewModelFactory.APPLICATION_KEY])
-                return ChatViewModel(app) as T
+                return ChatViewModel(checkNotNull(extras[AndroidViewModelFactory.APPLICATION_KEY])) as T
             }
         }
     }
