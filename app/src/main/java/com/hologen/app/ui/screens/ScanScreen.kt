@@ -10,6 +10,11 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +22,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -129,7 +135,11 @@ fun ScanScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.weight(2f).padding(horizontal = HologenMetrics.space16, vertical = HologenMetrics.space12),
             verticalArrangement = Arrangement.spacedBy(HologenMetrics.space12)
         ) {
-            MessageList(messages = uiState.messages, modifier = Modifier.weight(1f))
+            MessageList(
+                messages = uiState.messages, 
+                modifier = Modifier.weight(1f),
+                showTypingIndicator = uiState.isTyping
+            )
 
             if (attachments.isNotEmpty()) {
                 AttachmentChips(attachments = attachments, onRemove = { attachmentToRemove ->
@@ -303,9 +313,9 @@ private fun AttachmentChips(attachments: List<Attachment>, onRemove: (Attachment
 }
 
 @Composable
-private fun MessageList(messages: List<ChatMessage>, modifier: Modifier) {
+private fun MessageList(messages: List<ChatMessage>, modifier: Modifier, showTypingIndicator: Boolean = false) {
     LazyColumn(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(HologenMetrics.space8)) {
-        if (messages.isEmpty()) {
+        if (messages.isEmpty() && !showTypingIndicator) {
             item {
                 Box(modifier = Modifier.fillMaxWidth().padding(HologenMetrics.space16), contentAlignment = Alignment.Center) {
                     Text(text = stringResource(R.string.chat_empty_state), style = MaterialTheme.typography.bodyMedium, color = HologenColors.Text.secondary, textAlign = TextAlign.Center)
@@ -313,6 +323,11 @@ private fun MessageList(messages: List<ChatMessage>, modifier: Modifier) {
             }
         } else {
             items(messages, key = { it.id }) { message -> MessageBubble(message) }
+            if (showTypingIndicator) {
+                item {
+                    TypingIndicator()
+                }
+            }
         }
     }
 }
@@ -363,12 +378,12 @@ private fun MessageBubble(message: ChatMessage) {
                 modifier = Modifier
                     .clip(RoundedCornerShape(HologenMetrics.historyCardRadius))
                     .background(
-                        if (message.sender == MessageSender.USER) HologenColors.Background.card
-                        else HologenColors.Background.cardSecondary
+                        if (message.sender == MessageSender.USER) HologenColors.Accent.mint
+                        else HologenColors.Background.card
                     )
                     .padding(horizontal = HologenMetrics.space12, vertical = HologenMetrics.space8),
                 style = MaterialTheme.typography.bodyMedium,
-                color = HologenColors.Text.primary
+                color = if (message.sender == MessageSender.USER) HologenColors.Background.primary else HologenColors.Text.primary
             )
         }
     }
@@ -421,6 +436,44 @@ private fun Composer(
             modifier = Modifier.clip(RoundedCornerShape(HologenMetrics.buttonRadius)).background(if (canSend) HologenColors.Accent.mint else HologenColors.Background.cardSecondary)
         ) {
             Icon(Icons.Outlined.Send, contentDescription = stringResource(R.string.send_message), tint = HologenColors.Background.primary)
+        }
+    }
+}
+
+@Composable
+private fun TypingIndicator() {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(HologenMetrics.historyCardRadius))
+            .background(HologenColors.Background.card)
+            .padding(horizontal = HologenMetrics.space12, vertical = HologenMetrics.space8),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(3) { index ->
+            Animatable(0f).also { animatable ->
+                LaunchedEffect(Unit) {
+                    animatable.animateTo(
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(
+                                durationMillis = 600,
+                                delayMillis = index * 200,
+                                easing = FastOutSlowInEasing
+                            ),
+                            repeatMode = RepeatMode.Reverse
+                        )
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            HologenColors.Accent.mint.copy(alpha = animatable.value)
+                        )
+                        .clip(CircleShape)
+                )
+                if (index < 2) Spacer(modifier = Modifier.width(4.dp))
+            }
         }
     }
 }
