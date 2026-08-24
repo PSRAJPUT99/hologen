@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory
@@ -29,7 +30,6 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
-import android.util.Base64
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -38,7 +38,7 @@ data class ChatUiState(
     val error: String? = null
 )
 
-class ChatViewModel(application: Application) : ViewModel() {
+class ChatViewModel(private val application: Application) : ViewModel() {
 
     private val settingsRepository = SettingsRepository(application)
 
@@ -259,17 +259,20 @@ class ChatViewModel(application: Application) : ViewModel() {
         }
     }
 
-    // Convert image URI to Base64
-    private fun imageToBase64(uri: Uri): String? {
+    // Convert image URI String to Base64 properly using ContentResolver
+    private fun imageToBase64(uriString: String): String? {
         return try {
-            val inputStream = javaClass.classLoader?.getResourceAsStream(uri.toString())
-                ?: return null
+            val uri = Uri.parse(uriString)
+            val inputStream = application.contentResolver.openInputStream(uri)
+            if (inputStream == null) return null
             
             val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+            
             val byteArrayOutputStream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 80, byteArrayOutputStream)
             val byteArray = byteArrayOutputStream.toByteArray()
-            android.util.Base64.encodeToString(byteArray, android.util.Base64.NO_WRAP)
+            Base64.encodeToString(byteArray, Base64.NO_WRAP)
         } catch (e: Exception) {
             null
         }
@@ -290,12 +293,10 @@ class ChatViewModel(application: Application) : ViewModel() {
             connection.connectTimeout = 30000
             connection.readTimeout = 60000
 
-            // Create JSON Body with System Prompt for Professional Behavior
             val jsonBody = JSONObject()
             jsonBody.put("model", model)
             jsonBody.put("max_tokens", 500)
             
-            // Add System Prompt for Professional Hologen Assistant
             val messagesArray = JSONArray()
             
             val systemMessage = JSONObject()
@@ -315,7 +316,6 @@ class ChatViewModel(application: Application) : ViewModel() {
             
             jsonBody.put("messages", messagesArray)
 
-            // Send Request
             val os = connection.outputStream
             val writer = OutputStreamWriter(os, "UTF-8")
             writer.write(jsonBody.toString())
@@ -323,7 +323,6 @@ class ChatViewModel(application: Application) : ViewModel() {
             writer.close()
             os.close()
 
-            // Read Response
             val responseCode = connection.responseCode
             val inputStream = if (responseCode == HttpURLConnection.HTTP_OK) {
                 connection.inputStream
@@ -358,8 +357,8 @@ class ChatViewModel(application: Application) : ViewModel() {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val application = checkNotNull(extras[AndroidViewModelFactory.APPLICATION_KEY])
-                return ChatViewModel(application) as T
+                val app = checkNotNull(extras[AndroidViewModelFactory.APPLICATION_KEY])
+                return ChatViewModel(app) as T
             }
         }
     }
