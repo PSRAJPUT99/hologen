@@ -3,6 +3,7 @@ package com.hologen.app.viewmodel
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.hologen.app.data.Attachment
@@ -44,8 +45,7 @@ class ChatViewModel(application: Application) : ViewModel() {
             id = UUID.randomUUID().toString(),
             text = text,
             attachments = attachments,
-            sender = MessageSender.USER,
-            timestamp = System.currentTimeMillis()
+            sender = MessageSender.USER
         )
 
         val currentMessages = _uiState.value.messages.toMutableList()
@@ -70,8 +70,7 @@ class ChatViewModel(application: Application) : ViewModel() {
                     id = UUID.randomUUID().toString(),
                     text = aiResponse,
                     attachments = emptyList(),
-                    sender = MessageSender.AI,
-                    timestamp = System.currentTimeMillis()
+                    sender = MessageSender.AI
                 )
 
                 val updatedMessages = _uiState.value.messages.toMutableList()
@@ -84,8 +83,7 @@ class ChatViewModel(application: Application) : ViewModel() {
                     id = UUID.randomUUID().toString(),
                     text = "Error: ${e.message ?: "Unknown error occurred"}",
                     attachments = emptyList(),
-                    sender = MessageSender.AI,
-                    timestamp = System.currentTimeMillis()
+                    sender = MessageSender.AI
                 )
                 val updatedMessages = _uiState.value.messages.toMutableList()
                 updatedMessages.add(errorMessage)
@@ -165,7 +163,7 @@ class ChatViewModel(application: Application) : ViewModel() {
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
-                val application = extras[androidx.lifecycle.viewmodel.AndroidViewModelFactory.APPLICATION_KEY]!!
+                val application = checkNotNull(extras[AndroidViewModelFactory.APPLICATION_KEY])
                 return ChatViewModel(application) as T
             }
         }
