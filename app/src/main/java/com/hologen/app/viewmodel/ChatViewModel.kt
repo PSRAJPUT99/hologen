@@ -110,6 +110,7 @@ class ChatViewModel(application: Application) : ViewModel() {
             // Create JSON Body
             val jsonBody = JSONObject()
             jsonBody.put("model", model)
+            jsonBody.put("max_tokens", 500) // FIXED: Limit tokens to prevent 402 Credit Error
             
             val messagesArray = JSONArray()
             val userMessageObj = JSONObject()
