@@ -11,6 +11,7 @@ import com.hologen.app.data.ChatMessage
 import com.hologen.app.data.MessageSender
 import com.hologen.app.data.SettingsRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,7 @@ import java.util.UUID
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val isProcessing: Boolean = false,
+    val isTyping: Boolean = false,
     val error: String? = null
 )
 
@@ -50,7 +52,12 @@ class ChatViewModel(application: Application) : ViewModel() {
 
         val currentMessages = _uiState.value.messages.toMutableList()
         currentMessages.add(userMessage)
-        _uiState.value = _uiState.value.copy(messages = currentMessages, isProcessing = true, error = null)
+        _uiState.value = _uiState.value.copy(
+            messages = currentMessages, 
+            isProcessing = true, 
+            isTyping = true,
+            error = null
+        )
 
         // 2. Launch Coroutine to call OpenRouter API
         viewModelScope.launch {
@@ -63,19 +70,10 @@ class ChatViewModel(application: Application) : ViewModel() {
                 }
 
                 // Call the actual API
-                val aiResponse = callOpenRouterAPI(apiKey, model, text)
-
-                // 3. Add AI Response to UI
-                val aiMessage = ChatMessage(
-                    id = UUID.randomUUID().toString(),
-                    text = aiResponse,
-                    attachments = emptyList(),
-                    sender = MessageSender.AI
-                )
-
-                val updatedMessages = _uiState.value.messages.toMutableList()
-                updatedMessages.add(aiMessage)
-                _uiState.value = _uiState.value.copy(messages = updatedMessages, isProcessing = false)
+                val fullResponse = callOpenRouterAPI(apiKey, model, text)
+                
+                // 3. Stream the response word by word
+                streamAIResponse(fullResponse)
 
             } catch (e: Exception) {
                 // Handle Error
@@ -87,9 +85,52 @@ class ChatViewModel(application: Application) : ViewModel() {
                 )
                 val updatedMessages = _uiState.value.messages.toMutableList()
                 updatedMessages.add(errorMessage)
-                _uiState.value = _uiState.value.copy(messages = updatedMessages, isProcessing = false, error = e.message)
+                _uiState.value = _uiState.value.copy(
+                    messages = updatedMessages, 
+                    isProcessing = false, 
+                    isTyping = false,
+                    error = e.message
+                )
             }
         }
+    }
+
+    // Stream AI response word by word for professional effect
+    private suspend fun streamAIResponse(fullResponse: String) {
+        val words = fullResponse.split(" ")
+        var currentText = ""
+        
+        // Create AI message with empty text
+        val aiMessageId = UUID.randomUUID().toString()
+        val aiMessage = ChatMessage(
+            id = aiMessageId,
+            text = "",
+            attachments = emptyList(),
+            sender = MessageSender.AI
+        )
+        
+        val updatedMessages = _uiState.value.messages.toMutableList()
+        updatedMessages.add(aiMessage)
+        _uiState.value = _uiState.value.copy(messages = updatedMessages, isTyping = true)
+
+        // Stream each word with delay
+        words.forEachIndexed { index, word ->
+            delay(50) // 50ms delay between words for natural typing effect
+            currentText += if (index == 0) word else " $word"
+            
+            val messages = _uiState.value.messages.toMutableList()
+            val aiMessageIndex = messages.indexOfFirst { it.id == aiMessageId }
+            if (aiMessageIndex != -1) {
+                messages[aiMessageIndex] = messages[aiMessageIndex].copy(text = currentText)
+                _uiState.value = _uiState.value.copy(messages = messages)
+            }
+        }
+
+        // Done typing
+        _uiState.value = _uiState.value.copy(
+            isProcessing = false, 
+            isTyping = false
+        )
     }
 
     // --- NETWORK LOGIC ---
@@ -104,15 +145,27 @@ class ChatViewModel(application: Application) : ViewModel() {
             connection.setRequestProperty("HTTP-Referer", "https://github.com/hologen-app") 
             connection.setRequestProperty("X-Title", "Hologen App") 
             connection.doOutput = true
-            connection.connectTimeout = 30000 // 30 seconds
-            connection.readTimeout = 60000 // 60 seconds
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000
 
-            // Create JSON Body
+            // Create JSON Body with System Prompt for Professional Behavior
             val jsonBody = JSONObject()
             jsonBody.put("model", model)
-            jsonBody.put("max_tokens", 500) // FIXED: Limit tokens to prevent 402 Credit Error
+            jsonBody.put("max_tokens", 500)
             
+            // Add System Prompt for Professional Hologen Assistant
             val messagesArray = JSONArray()
+            
+            val systemMessage = JSONObject()
+            systemMessage.put("role", "system")
+            systemMessage.put("content", 
+                "You are Omi, the AI assistant for Hologen - a professional 3D hologram and object visualization app. " +
+                "Your role is to help users identify objects, understand their parts, and visualize them in 3D. " +
+                "Be professional, concise, and helpful. When describing objects, focus on technical details and components. " +
+                "Keep responses clear and structured."
+            )
+            messagesArray.put(systemMessage)
+            
             val userMessageObj = JSONObject()
             userMessageObj.put("role", "user")
             userMessageObj.put("content", prompt)
@@ -140,7 +193,6 @@ class ChatViewModel(application: Application) : ViewModel() {
             connection.disconnect()
 
             if (responseCode == HttpURLConnection.HTTP_OK) {
-                // Parse JSON Response
                 try {
                     val jsonResponse = JSONObject(responseString)
                     val choices = jsonResponse.getJSONArray("choices")
