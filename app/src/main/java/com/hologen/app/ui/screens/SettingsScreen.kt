@@ -23,16 +23,6 @@ import com.hologen.app.ui.theme.HologenMetrics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-val AVAILABLE_MODELS = listOf(
-    "openai/gpt-4o",
-    "openai/gpt-4o-mini",
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3-haiku",
-    "meta-llama/llama-3-70b-instruct",
-    "google/gemini-pro-1.5",
-    "mistralai/mixtral-8x22b-instruct"
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier) {
@@ -41,33 +31,20 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     
     val apiKey by repository.apiKey.collectAsStateWithLifecycle(initialValue = "")
-    val selectedModel by repository.selectedModel.collectAsStateWithLifecycle(initialValue = "openai/gpt-4o")
+    val selectedModel by repository.selectedModel.collectAsStateWithLifecycle(initialValue = "openai/gpt-4o-mini")
 
     var inputApiKey by remember { mutableStateOf(apiKey ?: "") }
-    var isModelDropdownExpanded by remember { mutableStateOf(false) }
+    var inputModel by remember { mutableStateOf(selectedModel ?: "openai/gpt-4o-mini") }
     var showClearDialog by remember { mutableStateOf(false) }
     var saveButtonText by remember { mutableStateOf("Save API Key") }
 
-    LaunchedEffect(apiKey) {
-        if (apiKey != null && apiKey != inputApiKey) {
-            inputApiKey = apiKey!!
-        }
-    }
+    LaunchedEffect(apiKey) { if (apiKey != null && apiKey != inputApiKey) inputApiKey = apiKey!! }
+    LaunchedEffect(selectedModel) { if (selectedModel != null && selectedModel != inputModel) inputModel = selectedModel!! }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(HologenColors.Background.primary)
-            .verticalScroll(rememberScrollState())
-            .padding(HologenMetrics.space16)
+        modifier = modifier.fillMaxSize().background(HologenColors.Background.primary).verticalScroll(rememberScrollState()).padding(HologenMetrics.space16)
     ) {
-        Text(
-            text = "Settings",
-            style = MaterialTheme.typography.headlineMedium,
-            color = HologenColors.Text.primary,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
+        Text(text = "Settings", style = MaterialTheme.typography.headlineMedium, color = HologenColors.Text.primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
 
         SettingsSectionHeader(title = "AI Configuration", icon = Icons.Outlined.SmartToy)
         Spacer(modifier = Modifier.height(16.dp))
@@ -75,16 +52,12 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         OutlinedTextField(
             value = inputApiKey,
             onValueChange = { inputApiKey = it },
-            label = { Text("OpenRouter API Key") },
-            placeholder = { Text("sk-or-v1-...") },
+            label = { Text("API Key (OpenRouter, Gemini, or OpenAI)") },
+            placeholder = { Text("sk-or-v1-... or AIza...") },
             modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = HologenColors.Accent.mint,
-                focusedLabelColor = HologenColors.Accent.mint
-            ),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HologenColors.Accent.mint, focusedLabelColor = HologenColors.Accent.mint),
             singleLine = true
         )
-        
         Spacer(modifier = Modifier.height(8.dp))
         
         Button(
@@ -94,130 +67,61 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                         repository.saveApiKey(inputApiKey)
                         saveButtonText = "Saved! ✓"
                         Toast.makeText(context, "API Key Saved Successfully!", Toast.LENGTH_SHORT).show()
-                        delay(2000)
-                        saveButtonText = "Save API Key"
+                        delay(2000); saveButtonText = "Save API Key"
                     }
-                } else {
-                    Toast.makeText(context, "Please enter a valid API Key", Toast.LENGTH_SHORT).show()
-                }
+                } else { Toast.makeText(context, "Please enter a valid API Key", Toast.LENGTH_SHORT).show() }
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = HologenColors.Accent.mint),
             enabled = inputApiKey.isNotBlank()
-        ) {
-            Text(saveButtonText, color = HologenColors.Background.primary)
-        }
+        ) { Text(saveButtonText, color = HologenColors.Background.primary) }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "Preferred Model",
-            style = MaterialTheme.typography.titleMedium,
-            color = HologenColors.Text.primary,
-            modifier = Modifier.padding(bottom = 8.dp)
+        Text(text = "Model ID (Type exact model name)", style = MaterialTheme.typography.titleMedium, color = HologenColors.Text.primary, modifier = Modifier.padding(bottom = 8.dp))
+        OutlinedTextField(
+            value = inputModel,
+            onValueChange = { inputModel = it },
+            placeholder = { Text("e.g., openai/gpt-4o, gemini-1.5-flash, claude-3-opus") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HologenColors.Accent.mint)
         )
-
-Box(modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(
-                onClick = { isModelDropdownExpanded = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = HologenColors.Text.primary)
-            ) {
-                Text(selectedModel ?: "Select Model", modifier = Modifier.weight(1f))
-            }
-            DropdownMenu(
-                expanded = isModelDropdownExpanded,
-                onDismissRequest = { isModelDropdownExpanded = false },
-                modifier = Modifier.fillMaxWidth(0.9f)
-            ) {
-                AVAILABLE_MODELS.forEach { model ->
-                    DropdownMenuItem(
-                        text = { Text(model) },
-                        onClick = {
-                            scope.launch {
-                                repository.saveSelectedModel(model)
-                                Toast.makeText(context, "Model changed to: $model", Toast.LENGTH_SHORT).show()
-                            }
-                            isModelDropdownExpanded = false
-                        }
-                    )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { 
+                scope.launch {
+                    repository.saveSelectedModel(inputModel)
+                    Toast.makeText(context, "Model set to: $inputModel", Toast.LENGTH_SHORT).show()
                 }
-            }
-        }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = HologenColors.Accent.mint)
+        ) { Text("Save Model", color = HologenColors.Background.primary) }
 
         Spacer(modifier = Modifier.height(32.dp))
-
         SettingsSectionHeader(title = "Data Management", icon = Icons.Outlined.ClearAll)
         Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedButton(
-            onClick = { showClearDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-        ) {
-            Text("Clear All Local Data")
-        }
+        OutlinedButton(onClick = { showClearDialog = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Clear All Local Data") }
 
         Spacer(modifier = Modifier.height(32.dp))
-
         SettingsSectionHeader(title = "About", icon = Icons.Outlined.Info)
         Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            text = "Hologen v1.0.0\nPowered by Omi AI Engine",
-            style = MaterialTheme.typography.bodyMedium,
-            color = HologenColors.Text.secondary
-        )
+        Text(text = "Hologen v1.0.0\nUniversal AI Engine", style = MaterialTheme.typography.bodyMedium, color = HologenColors.Text.secondary)
     }
 
     if (showClearDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearDialog = false },
-            title = { Text("Clear Data?") },
-            text = { Text("This will reset your local settings and chat history. This action cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        repository.clearLocalData()
-                        inputApiKey = ""
-                        Toast.makeText(context, "All data cleared", Toast.LENGTH_SHORT).show()
-                    }
-                    showClearDialog = false
-                }) {
-                    Text("Clear", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
+        AlertDialog(onDismissRequest = { showClearDialog = false }, title = { Text("Clear Data?") }, text = { Text("This will reset your local settings and chat history.") },
+            confirmButton = { TextButton(onClick = { scope.launch { repository.clearLocalData(); inputApiKey = ""; inputModel = "openai/gpt-4o-mini"; Toast.makeText(context, "Cleared", Toast.LENGTH_SHORT).show() }; showClearDialog = false }) { Text("Clear", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("Cancel") } })
     }
 }
 
 @Composable
 private fun SettingsSectionHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = HologenColors.Accent.mint,
-            modifier = Modifier.size(24.dp)
-        )
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Icon(imageVector = icon, contentDescription = null, tint = HologenColors.Accent.mint, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = HologenColors.Text.primary,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(text = title, style = MaterialTheme.typography.titleLarge, color = HologenColors.Text.primary, fontWeight = FontWeight.SemiBold)
     }
-    HorizontalDivider(
-        modifier = Modifier.padding(top = 8.dp),
-        color = HologenColors.Background.cardSecondary
-    )
+    HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = HologenColors.Background.cardSecondary)
 }
