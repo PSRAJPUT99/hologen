@@ -38,7 +38,7 @@ data class ChatUiState(
     val error: String? = null
 )
 
-enum class AIProvider { GEMINI, OPENROUTER, OPENAI }
+enum class AIProvider { GEMINI, OPENAI, OPENROUTER, ANTHROPIC }
 
 class ChatViewModel(private val application: Application) : ViewModel() {
     private val settingsRepository = SettingsRepository(application)
@@ -60,13 +60,14 @@ class ChatViewModel(private val application: Application) : ViewModel() {
 
                 if (apiKey.isNullOrBlank()) throw Exception("API Key missing! Please add it in Settings.")
 
-                val provider = detectProvider(apiKey)
+                val provider = detectProvider(model, apiKey)
                 val hasImages = attachments.any { it.type == AttachmentType.PHOTO }
                 
                 val fullResponse = when (provider) {
-                    AIProvider.GEMINI -> callGeminiAPI(apiKey, text, attachments)
-                    AIProvider.OPENROUTER -> callOpenRouterAPI(apiKey, model, text, attachments)
+                    AIProvider.GEMINI -> callGeminiAPI(apiKey, model, text, attachments)
                     AIProvider.OPENAI -> callOpenAIAPI(apiKey, model, text, attachments)
+                    AIProvider.OPENROUTER -> callOpenRouterAPI(apiKey, model, text, attachments)
+                    AIProvider.ANTHROPIC -> callAnthropicAPI(apiKey, model, text, attachments)
                 }
                 
                 streamAIResponse(fullResponse)
@@ -79,12 +80,23 @@ class ChatViewModel(private val application: Application) : ViewModel() {
         }
     }
 
-    private fun detectProvider(apiKey: String): AIProvider {
+    // SMART DETECTION: Model ID aur API Key dono ko check karta hai
+    private fun detectProvider(model: String, apiKey: String): AIProvider {
+        val modelLower = model.lowercase()
+        
+        // Pehle Model ID check karo
         return when {
-            apiKey.startsWith("AIza") -> AIProvider.GEMINI
+            modelLower.contains("gemini") -> AIProvider.GEMINI
+            modelLower.contains("claude") -> AIProvider.ANTHROPIC
+            modelLower.startsWith("gpt-") || modelLower.startsWith("o1-") -> AIProvider.OPENAI
+            modelLower.contains("openai/") -> AIProvider.OPENAI
+            modelLower.contains("anthropic/") -> AIProvider.ANTHROPIC
+            modelLower.contains("meta-llama/") || modelLower.contains("mistral/") || modelLower.contains("google/") -> AIProvider.OPENROUTER
+            // Fallback: API Key format check karo
+            apiKey.startsWith("AIza") || apiKey.startsWith("AQ.") -> AIProvider.GEMINI
             apiKey.startsWith("sk-or-v1") -> AIProvider.OPENROUTER
             apiKey.startsWith("sk-") -> AIProvider.OPENAI
-            else -> AIProvider.OPENROUTER // Default fallback
+            else -> AIProvider.OPENROUTER // Default
         }
     }
 
@@ -111,15 +123,17 @@ class ChatViewModel(private val application: Application) : ViewModel() {
         _uiState.value = _uiState.value.copy(isProcessing = false, isTyping = false)
     }
 
-    // --- GEMINI API ---
-    private suspend fun callGeminiAPI(apiKey: String, prompt: String, attachments: List<Attachment>): String {
+    // --- GEMINI API (Supports ALL key formats: AIza, AQ, etc.) ---
+    private suspend fun callGeminiAPI(apiKey: String, model: String, prompt: String, attachments: List<Attachment>): String {
         return withContext(Dispatchers.IO) {
-            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey")
+            val modelName = if (model.contains("gemini")) model else "gemini-1.5-flash"
+            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
             connection.doOutput = true
-            connection.connectTimeout = 30000; connection.readTimeout = 60000
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000
 
             val jsonBody = JSONObject()
             val contentsArray = JSONArray()
@@ -138,12 +152,85 @@ class ChatViewModel(private val application: Application) : ViewModel() {
                     }
                 }
             }
-            contentObj.put("parts", partsArray); contentsArray.put(contentObj)
+            contentObj.put("parts", partsArray)
+            contentsArray.put(contentObj)
             jsonBody.put("contents", contentsArray)
             jsonBody.put("generationConfig", JSONObject().put("maxOutputTokens", 500))
 
-            sendRequest(connection, jsonBody)
-            parseGeminiResponse(connection)
+            val os = connection.outputStream
+            OutputStreamWriter(os, "UTF-8").apply { write(jsonBody.toString()); flush(); close() }
+            os.close()
+
+            val code = connection.responseCode
+            val stream = if (code == 200) connection.inputStream else connection.errorStream
+            val res = stream?.bufferedReader()?.readText() ?: ""
+            connection.disconnect()
+
+            if (code == 200) {
+                try {
+                    return@withContext JSONObject(res).getJSONArray("candidates").getJSONObject(0)
+                        .getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text")
+                } catch (e: Exception) { return@withContext "Failed to parse Gemini response: ${e.message}" }
+            } else {
+                return@withContext "Gemini Error ($code): $res"
+            }
+        }
+    }
+
+    // --- OPENAI API ---
+    private suspend fun callOpenAIAPI(apiKey: String, model: String, prompt: String, attachments: List<Attachment>): String {
+        return withContext(Dispatchers.IO) {
+            val url = URL("https://api.openai.com/v1/chat/completions")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Authorization", "Bearer $apiKey")
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.doOutput = true
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000
+
+            val jsonBody = JSONObject()
+            jsonBody.put("model", model.replace("openai/", ""))
+            jsonBody.put("max_tokens", 500)
+            
+            val messagesArray = JSONArray()
+            val sysMsg = JSONObject(); sysMsg.put("role", "system"); sysMsg.put("content", "You are Omi, AI assistant for Hologen 3D app.")
+            messagesArray.put(sysMsg)
+            
+            val userMsg = JSONObject(); userMsg.put("role", "user")
+            val hasImages = attachments.any { it.type == AttachmentType.PHOTO }
+            
+            if (hasImages) {
+                val contentArray = JSONArray()
+                if (prompt.isNotBlank()) { val t = JSONObject(); t.put("type", "text"); t.put("text", prompt); contentArray.put(t) }
+                for (att in attachments) {
+                    if (att.type == AttachmentType.PHOTO) {
+                        val b64 = imageToBase64(att.uri)
+                        if (b64 != null) {
+                            val img = JSONObject(); img.put("type", "image_url"); img.put("image_url", JSONObject().put("url", "data:image/jpeg;base64,$b64")); contentArray.put(img)
+                        }
+                    }
+                }
+                userMsg.put("content", contentArray)
+            } else {
+                userMsg.put("content", prompt)
+            }
+            messagesArray.put(userMsg)
+            jsonBody.put("messages", messagesArray)
+
+            val os = connection.outputStream
+            OutputStreamWriter(os, "UTF-8").apply { write(jsonBody.toString()); flush(); close() }
+            os.close()
+
+            val code = connection.responseCode
+            val stream = if (code == 200) connection.inputStream else connection.errorStream
+            val res = stream?.bufferedReader()?.readText() ?: ""
+            connection.disconnect()
+
+            return@withContext if (code == 200) {
+                try { JSONObject(res).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content") }
+                catch (e: Exception) { "Parse error: ${e.message}" }
+            } else { "OpenAI Error ($code): $res" }
         }
     }
 
@@ -158,19 +245,20 @@ class ChatViewModel(private val application: Application) : ViewModel() {
             connection.setRequestProperty("HTTP-Referer", "https://github.com/hologen-app")
             connection.setRequestProperty("X-Title", "Hologen App")
             connection.doOutput = true
-            connection.connectTimeout = 30000; connection.readTimeout = 60000
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000
 
             val jsonBody = JSONObject()
             jsonBody.put("model", model)
             jsonBody.put("max_tokens", 500)
             
             val messagesArray = JSONArray()
-            val sysMsg = JSONObject(); sysMsg.put("role", "system"); sysMsg.put("content", "You are Omi, a professional AI assistant for Hologen 3D app. Identify objects and describe technical parts concisely.")
+            val sysMsg = JSONObject(); sysMsg.put("role", "system"); sysMsg.put("content", "You are Omi, AI assistant for Hologen 3D app.")
             messagesArray.put(sysMsg)
             
             val userMsg = JSONObject(); userMsg.put("role", "user")
-            
             val hasImages = attachments.any { it.type == AttachmentType.PHOTO }
+            
             if (hasImages) {
                 val contentArray = JSONArray()
                 if (prompt.isNotBlank()) { val t = JSONObject(); t.put("type", "text"); t.put("text", prompt); contentArray.put(t) }
@@ -189,80 +277,78 @@ class ChatViewModel(private val application: Application) : ViewModel() {
             messagesArray.put(userMsg)
             jsonBody.put("messages", messagesArray)
 
-            sendRequest(connection, jsonBody)
-            parseOpenRouterResponse(connection)
+            val os = connection.outputStream
+            OutputStreamWriter(os, "UTF-8").apply { write(jsonBody.toString()); flush(); close() }
+            os.close()
+
+            val code = connection.responseCode
+            val stream = if (code == 200) connection.inputStream else connection.errorStream
+            val res = stream?.bufferedReader()?.readText() ?: ""
+            connection.disconnect()
+
+            return@withContext if (code == 200) {
+                try { JSONObject(res).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content") }
+                catch (e: Exception) { "Parse error: ${e.message}" }
+            } else { "OpenRouter Error ($code): $res" }
         }
     }
 
-    // --- OPENAI API (Direct) ---
-    private suspend fun callOpenAIAPI(apiKey: String, model: String, prompt: String, attachments: List<Attachment>): String {
+    // --- ANTHROPIC API (Claude) ---
+    private suspend fun callAnthropicAPI(apiKey: String, model: String, prompt: String, attachments: List<Attachment>): String {
         return withContext(Dispatchers.IO) {
-            val url = URL("https://api.openai.com/v1/chat/completions")
+            val url = URL("https://api.anthropic.com/v1/messages")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
-            connection.setRequestProperty("Authorization", "Bearer $apiKey")
+            connection.setRequestProperty("x-api-key", apiKey)
             connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("anthropic-version", "2023-06-01")
             connection.doOutput = true
-            connection.connectTimeout = 30000; connection.readTimeout = 60000
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000
 
             val jsonBody = JSONObject()
-            jsonBody.put("model", model)
+            jsonBody.put("model", model.replace("anthropic/", ""))
             jsonBody.put("max_tokens", 500)
             
             val messagesArray = JSONArray()
             val userMsg = JSONObject(); userMsg.put("role", "user")
             
-            val hasImages = attachments.any { it.type == AttachmentType.PHOTO }
-            if (hasImages) {
-                val contentArray = JSONArray()
-                if (prompt.isNotBlank()) { val t = JSONObject(); t.put("type", "text"); t.put("text", prompt); contentArray.put(t) }
-                for (att in attachments) {
-                    if (att.type == AttachmentType.PHOTO) {
-                        val b64 = imageToBase64(att.uri)
-                        if (b64 != null) {
-                            val img = JSONObject(); img.put("type", "image_url"); img.put("image_url", JSONObject().put("url", "data:image/jpeg;base64,$b64")); contentArray.put(img)
-                        }
+            val contentArray = JSONArray()
+            if (prompt.isNotBlank()) { val t = JSONObject(); t.put("type", "text"); t.put("text", prompt); contentArray.put(t) }
+            
+            for (att in attachments) {
+                if (att.type == AttachmentType.PHOTO) {
+                    val b64 = imageToBase64(att.uri)
+                    if (b64 != null) {
+                        val img = JSONObject()
+                        img.put("type", "image")
+                        val source = JSONObject()
+                        source.put("type", "base64")
+                        source.put("media_type", "image/jpeg")
+                        source.put("data", b64)
+                        img.put("source", source)
+                        contentArray.put(img)
                     }
                 }
-                userMsg.put("content", contentArray)
-            } else {
-                userMsg.put("content", prompt)
             }
+            userMsg.put("content", contentArray)
             messagesArray.put(userMsg)
             jsonBody.put("messages", messagesArray)
 
-            sendRequest(connection, jsonBody)
-            parseOpenRouterResponse(connection) // Same JSON structure for choices
+            val os = connection.outputStream
+            OutputStreamWriter(os, "UTF-8").apply { write(jsonBody.toString()); flush(); close() }
+            os.close()
+
+            val code = connection.responseCode
+            val stream = if (code == 200) connection.inputStream else connection.errorStream
+            val res = stream?.bufferedReader()?.readText() ?: ""
+            connection.disconnect()
+
+            return@withContext if (code == 200) {
+                try { JSONObject(res).getJSONArray("content").getJSONObject(0).getString("text") }
+                catch (e: Exception) { "Parse error: ${e.message}" }
+            } else { "Anthropic Error ($code): $res" }
         }
-    }
-
-    // --- HELPERS ---
-    private fun sendRequest(connection: HttpURLConnection, jsonBody: JSONObject) {
-        val os = connection.outputStream
-        OutputStreamWriter(os, "UTF-8").apply { write(jsonBody.toString()); flush(); close() }
-        os.close()
-    }
-
-    private fun parseOpenRouterResponse(connection: HttpURLConnection): String {
-        val code = connection.responseCode
-        val stream = if (code == 200) connection.inputStream else connection.errorStream
-        val res = stream?.bufferedReader()?.readText() ?: ""
-        connection.disconnect()
-        return if (code == 200) {
-            try { JSONObject(res).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content") } 
-            catch (e: Exception) { "Failed to parse response." }
-        } else { "API Error ($code): $res" }
-    }
-
-    private fun parseGeminiResponse(connection: HttpURLConnection): String {
-        val code = connection.responseCode
-        val stream = if (code == 200) connection.inputStream else connection.errorStream
-        val res = stream?.bufferedReader()?.readText() ?: ""
-        connection.disconnect()
-        return if (code == 200) {
-            try { JSONObject(res).getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text") }
-            catch (e: Exception) { "Failed to parse Gemini response." }
-        } else { "Gemini Error ($code): $res" }
     }
 
     private fun imageToBase64(uriString: String): String? {
