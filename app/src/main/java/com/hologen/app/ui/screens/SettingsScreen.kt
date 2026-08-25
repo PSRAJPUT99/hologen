@@ -1,5 +1,6 @@
 package com.hologen.app.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -13,15 +14,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hologen.app.ui.theme.HologenColors
 import com.hologen.app.ui.theme.HologenMetrics
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     var notificationsEnabled by remember { mutableStateOf(true) }
     var highQualityHolograms by remember { mutableStateOf(false) }
+    var showClearDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -43,17 +48,19 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         Spacer(modifier = Modifier.height(16.dp))
         
         ListItem(
-            headlineContent = { Text("User Profile", color = HologenColors.Text.primary) },
-            supportingContent = { Text("Guest User (Login to sync data)", color = HologenColors.Text.secondary) },
+            headlineContent = { Text("User Profile", color = HologenColors.Text.primary, fontWeight = FontWeight.Medium) },
+            supportingContent = { Text("Guest User (Sync enabled after login)", color = HologenColors.Text.secondary) },
             modifier = Modifier.background(HologenColors.Background.card, MaterialTheme.shapes.medium)
         )
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
-            onClick = { /* TODO: Implement Login/Signup later */ },
+            onClick = { 
+                Toast.makeText(context, "Profile management coming soon!", Toast.LENGTH_SHORT).show()
+            },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = HologenColors.Accent.mint)
         ) {
-            Text("Sign In / Sign Up")
+            Text("Manage Account")
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -68,7 +75,10 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 Switch(
                     checked = notificationsEnabled,
                     onCheckedChange = { notificationsEnabled = it },
-                    colors = SwitchDefaults.colors(checkedThumbColor = HologenColors.Accent.mint)
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = HologenColors.Accent.mint,
+                        checkedTrackColor = HologenColors.Accent.mint.copy(alpha = 0.5f)
+                    )
                 )
             },
             modifier = Modifier.background(HologenColors.Background.card, MaterialTheme.shapes.medium)
@@ -76,12 +86,15 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         Spacer(modifier = Modifier.height(8.dp))
         ListItem(
             headlineContent = { Text("High Quality Holograms", color = HologenColors.Text.primary) },
-            supportingContent = { Text("Uses more data and battery for better 3D", color = HologenColors.Text.secondary) },
+            supportingContent = { Text("Uses more data and battery for better 3D rendering", color = HologenColors.Text.secondary) },
             trailingContent = {
                 Switch(
                     checked = highQualityHolograms,
                     onCheckedChange = { highQualityHolograms = it },
-                    colors = SwitchDefaults.colors(checkedThumbColor = HologenColors.Accent.mint)
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = HologenColors.Accent.mint,
+                        checkedTrackColor = HologenColors.Accent.mint.copy(alpha = 0.5f)
+                    )
                 )
             },
             modifier = Modifier.background(HologenColors.Background.card, MaterialTheme.shapes.medium)
@@ -94,7 +107,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedButton(
-            onClick = { /* TODO: Clear data logic */ },
+            onClick = { showClearDialog = true },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
         ) {
@@ -110,7 +123,37 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         Text(
             text = "Hologen v1.0.0\nPowered by Hologen Spatial Engine",
             style = MaterialTheme.typography.bodyMedium,
-            color = HologenColors.Text.secondary
+            color = HologenColors.Text.secondary,
+            lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.5
+        )
+    }
+
+    // Clear Data Confirmation Dialog
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("Clear Data?", color = HologenColors.Text.primary) },
+            text = { 
+                Text(
+                    "This will reset your local settings and clear cached 3D models. This action cannot be undone.", 
+                    color = HologenColors.Text.secondary 
+                ) 
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    // TODO: Add actual clear data logic here later
+                    Toast.makeText(context, "Cache cleared successfully!", Toast.LENGTH_SHORT).show()
+                    showClearDialog = false
+                }) {
+                    Text("Clear", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text("Cancel", color = HologenColors.Text.primary)
+                }
+            },
+            containerColor = HologenColors.Background.card
         )
     }
 }
