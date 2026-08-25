@@ -18,10 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -47,7 +43,6 @@ fun LoginScreen(
     
     val scope = rememberCoroutineScope()
     
-    // Validation functions
     fun isValidEmail(email: String): Boolean {
         return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
     }
@@ -85,10 +80,9 @@ fun LoginScreen(
         
         scope.launch {
             isLoading = true
-            delay(1500) // Simulate API call
+            delay(1500) // Simulate network delay
             
-            // TODO: Replace with actual authentication logic
-            // For now, accept any valid email/password
+            // Simple validation for prototype (Replace with real auth later)
             if (email.isNotBlank() && password.length >= 6) {
                 onLoginSuccess()
             } else {
@@ -115,7 +109,6 @@ fun LoginScreen(
         ) {
             Spacer(modifier = Modifier.height(48.dp))
             
-            // Logo with Glow Effect
             Text(
                 text = "HOLOGEN",
                 style = MaterialTheme.typography.displayMedium,
@@ -131,7 +124,6 @@ fun LoginScreen(
                 modifier = Modifier.padding(bottom = 48.dp)
             )
             
-            // Email Field
             OutlinedTextField(
                 value = email,
                 onValueChange = { 
@@ -161,9 +153,6 @@ fun LoginScreen(
                     keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Next
                 ),
-                keyboardActions = KeyboardActions(
-                    onNext = { /* Focus password field */ }
-                ),
                 singleLine = true,
                 isError = emailError != null,
                 supportingText = emailError?.let { { Text(it, color = MaterialTheme.colorScheme.error) } }
@@ -171,7 +160,6 @@ fun LoginScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Password Field
             OutlinedTextField(
                 value = password,
                 onValueChange = { 
@@ -221,7 +209,6 @@ fun LoginScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // Error Message
             if (errorMessage != null) {
                 Text(
                     text = errorMessage!!,
@@ -231,7 +218,6 @@ fun LoginScreen(
                 )
             }
             
-            // Login Button
             Button(
                 onClick = { handleLogin() },
                 enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
@@ -263,7 +249,6 @@ fun LoginScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // Sign Up Link
             TextButton(onClick = { /* TODO: Navigate to Sign Up */ }) {
                 Text(
                     text = "Don't have an account? Sign Up",
@@ -275,7 +260,6 @@ fun LoginScreen(
     }
 }
 
-// Animated Grid Background
 @Composable
 private fun AnimatedGridBackground() {
     val infiniteTransition = rememberInfiniteTransition()
@@ -283,8 +267,8 @@ private fun AnimatedGridBackground() {
         initialValue = 0f,
         targetValue = 100f,
         animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
+            animation = tween(10000, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
         )
     )
     
@@ -293,27 +277,15 @@ private fun AnimatedGridBackground() {
         val strokeWidth = 1f
         val color = HologenColors.Accent.mint.copy(alpha = 0.1f)
         
-        // Draw vertical lines
         var x = offset % gridSize
         while (x < size.width) {
-            drawLine(
-                color = color,
-                start = Offset(x, 0f),
-                end = Offset(x, size.height),
-                strokeWidth = strokeWidth
-            )
+            drawLine(color = color, start = Offset(x, 0f), end = Offset(x, size.height), strokeWidth = strokeWidth)
             x += gridSize
         }
         
-        // Draw horizontal lines
         var y = offset % gridSize
         while (y < size.height) {
-            drawLine(
-                color = color,
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
-                strokeWidth = strokeWidth
-            )
+            drawLine(color = color, start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = strokeWidth)
             y += gridSize
         }
     }
