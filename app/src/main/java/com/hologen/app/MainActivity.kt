@@ -30,6 +30,7 @@ fun MainApp() {
     var isLoggedIn by rememberSaveable { mutableStateOf(false) }
 
     if (!isLoggedIn) {
+        // Naya LoginScreen sirf onLoginSuccess leta hai
         LoginScreen(
             onLoginSuccess = { isLoggedIn = true }
         )
