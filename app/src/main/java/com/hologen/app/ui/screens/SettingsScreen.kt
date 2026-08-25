@@ -64,7 +64,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
 
         ListItem(
             headlineContent = { Text("Push Notifications", color = HologenColors.Text.primary) },
-            trailingIcon = {
+            trailingContent = {
                 Switch(
                     checked = notificationsEnabled,
                     onCheckedChange = { notificationsEnabled = it },
@@ -77,7 +77,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         ListItem(
             headlineContent = { Text("High Quality Holograms", color = HologenColors.Text.primary) },
             supportingContent = { Text("Uses more data and battery for better 3D", color = HologenColors.Text.secondary) },
-            trailingIcon = {
+            trailingContent = {
                 Switch(
                     checked = highQualityHolograms,
                     onCheckedChange = { highQualityHolograms = it },
